@@ -312,7 +312,10 @@ export class Auth extends Component implements Link.Linkable {
         },
         { parent: self },
       );
-      router.route("/", issuer.url);
+      router.route(
+        "/",
+        issuer.url.apply((url) => url!),
+      );
 
       return router;
     }
@@ -328,7 +331,7 @@ export class Auth extends Component implements Link.Linkable {
   public get url() {
     return (
       this._router?.url ??
-      this._issuer.url.apply((v) => (v.endsWith("/") ? v.slice(0, -1) : v))
+      this._issuer.url.apply((v) => (v?.endsWith("/") ? v.slice(0, -1) : v))
     );
   }
 
@@ -365,7 +368,7 @@ export class Auth extends Component implements Link.Linkable {
       },
       include: [
         env({
-          OPENAUTH_ISSUER: this.url,
+          OPENAUTH_ISSUER: this.url.apply((url) => url!),
         }),
       ],
     };

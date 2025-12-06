@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/events"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 	"github.com/sst/sst/v3/internal/util"
@@ -38,6 +39,81 @@ func (p *Project) Run(ctx context.Context, input *StackInput) error {
 	// }
 	// return p.RunOld(ctx, input)
 	return p.RunNext(ctx, input)
+}
+
+func (p *Project) checkProviderUpgrading(workdir *PulumiWorkdir) map[string]string {
+	log := slog.Default().With("service", "project.run")
+	result := make(map[string]string)
+
+	checkpoint, err := workdir.Export()
+	if err != nil {
+		log.Info("could not export checkpoint for provider version comparison", "err", err)
+		return result
+	}
+
+	if checkpoint == nil || checkpoint.Latest == nil {
+		return result
+	}
+
+	stateProviders := make(map[string]string)
+
+	for _, resource := range checkpoint.Latest.Resources {
+		// "urn:pulumi:stage::app::pulumi:providers:random::default_4_18_2::61adb215-aad5-4981-a591-ef3b50cb5dcc
+		providerUrnParts := strings.Split(string(resource.Provider), ":")
+		if len(providerUrnParts) != 13 {
+			continue
+		}
+		provider, version := providerUrnParts[8], providerUrnParts[10]
+
+		if versionStr, ok := strings.CutPrefix(version, "default_"); ok {
+			versionSemVer := strings.ReplaceAll(versionStr, "_", ".")
+			stateProviders[provider] = versionSemVer
+			log.Info("found provider in state", "provider", provider, "version", versionSemVer)
+		}
+	}
+
+	for _, lockEntry := range p.lock {
+		if stateVersion, exists := stateProviders[lockEntry.Name]; exists {
+			log.Info("comparing versions",
+				"provider", lockEntry.Name,
+				"state", stateVersion,
+				"lock", lockEntry.Version)
+
+			stateVer, err := semver.NewVersion(stateVersion)
+			lockVer, err2 := semver.NewVersion(lockEntry.Version)
+
+			if err == nil && err2 == nil {
+				upgradeType := ""
+				if stateVer.Major() < lockVer.Major() {
+					upgradeType = "major"
+					log.Warn("major provider version upgrade detected",
+						"provider", lockEntry.Name,
+						"state_version", stateVersion,
+						"lock_version", lockEntry.Version,
+						"state_major", stateVer.Major(),
+						"lock_major", lockVer.Major())
+				} else if stateVer.Minor() < lockVer.Minor() {
+					upgradeType = "minor"
+					log.Info("minor provider version upgrade detected",
+						"provider", lockEntry.Name,
+						"state_version", stateVersion,
+						"lock_version", lockEntry.Version)
+				} else if stateVer.Patch() < lockVer.Patch() {
+					upgradeType = "patch"
+					log.Info("patch provider version upgrade detected",
+						"provider", lockEntry.Name,
+						"state_version", stateVersion,
+						"lock_version", lockEntry.Version)
+				}
+
+				if upgradeType != "" {
+					result[lockEntry.Name] = upgradeType
+				}
+			}
+		}
+	}
+
+	return result
 }
 
 func (p *Project) RunNext(ctx context.Context, input *StackInput) error {
@@ -289,8 +365,25 @@ func (p *Project) RunNext(ctx context.Context, input *StackInput) error {
 	}
 
 	if input.Command == "deploy" || input.Command == "diff" {
+		// Compare provider versions between state and lock file
+		providerVersions := p.checkProviderUpgrading(workdir)
+
+		// Check for major version upgrades and collect affected providers
+		majorUpgrades := []string{}
+		for provider, upgradeType := range providerVersions {
+			if upgradeType == "major" {
+				majorUpgrades = append(majorUpgrades, provider)
+			}
+		}
+
+		// Return error if major upgrades detected
+		if len(majorUpgrades) > 0 {
+			return util.NewReadableError(nil, fmt.Sprintf("Major version upgrade detected for provider(s): %s. Run `sst refresh` to migrate your state to this version. Then run `sst diff` to verify there are no unexpected changes. For more information, visit <LINK HERE TO DOCS>", strings.Join(majorUpgrades, ", ")))
+		}
+
 		for provider, opts := range p.app.Providers {
 			for key, value := range opts.(map[string]interface{}) {
+				log.Info("setting provider config", "provider", provider, "key", key, "value", value)
 				switch v := value.(type) {
 				case map[string]interface{}:
 					bytes, err := json.Marshal(v)
@@ -315,7 +408,7 @@ func (p *Project) RunNext(ctx context.Context, input *StackInput) error {
 	case "diff":
 		args = append([]string{"preview"}, args...)
 	case "refresh":
-		args = append([]string{"refresh", "--yes"}, args...)
+		args = append([]string{"refresh", "--yes", "--run-program"}, args...)
 	case "deploy":
 		args = append([]string{"up", "--yes", "-f"}, args...)
 	case "remove":

@@ -407,11 +407,11 @@ export interface BucketArgs {
     /**
      * Transform the S3 Bucket resource.
      */
-    bucket?: Transform<s3.BucketV2Args>;
+    bucket?: Transform<s3.BucketArgs>;
     /**
      * Transform the S3 Bucket CORS configuration resource.
      */
-    cors?: Transform<s3.BucketCorsConfigurationV2Args>;
+    cors?: Transform<s3.BucketCorsConfigurationArgs>;
     /**
      * Transform the S3 Bucket Policy resource.
      */
@@ -419,7 +419,7 @@ export interface BucketArgs {
     /**
      * Transform the S3 Bucket versioning resource.
      */
-    versioning?: Transform<s3.BucketVersioningV2Args>;
+    versioning?: Transform<s3.BucketVersioningArgs>;
     /**
      * Transform the public access block resource that's attached to the Bucket.
      *
@@ -690,7 +690,7 @@ export interface BucketSubscriberArgs {
 
 interface BucketRef {
   ref: boolean;
-  bucket: s3.BucketV2;
+  bucket: s3.Bucket;
 }
 
 /**
@@ -756,7 +756,7 @@ export class Bucket extends Component implements Link.Linkable {
   private constructorName: string;
   private constructorOpts: ComponentResourceOptions;
   private isSubscribed: boolean = false;
-  private bucket: Output<s3.BucketV2>;
+  private bucket: Output<s3.Bucket>;
 
   constructor(
     name: string,
@@ -822,7 +822,7 @@ export class Bucket extends Component implements Link.Linkable {
     }
 
     function createBucket() {
-      return new s3.BucketV2(
+      return new s3.Bucket(
         ...transform(
           args.transform?.bucket,
           `${name}Bucket`,
@@ -838,7 +838,7 @@ export class Bucket extends Component implements Link.Linkable {
       return output(args.versioning).apply((versioning) => {
         if (!versioning) return;
 
-        return new s3.BucketVersioningV2(
+        return new s3.BucketVersioning(
           ...transform(
             args.transform?.versioning,
             `${name}Versioning`,
@@ -940,7 +940,7 @@ export class Bucket extends Component implements Link.Linkable {
       return output(args.cors).apply((cors) => {
         if (cors === false) return;
 
-        return new s3.BucketCorsConfigurationV2(
+        return new s3.BucketCorsConfiguration(
           ...transform(
             args.transform?.cors,
             `${name}Cors`,
@@ -1041,7 +1041,7 @@ export class Bucket extends Component implements Link.Linkable {
   ) {
     return new Bucket(name, {
       ref: true,
-      bucket: s3.BucketV2.get(`${name}Bucket`, bucketName, undefined, opts),
+      bucket: s3.Bucket.get(`${name}Bucket`, bucketName, undefined, opts),
     } as BucketArgs);
   }
 
