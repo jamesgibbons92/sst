@@ -20,6 +20,8 @@ import { Vpc as VpcV1 } from "./vpc-v1";
 import { Link } from "../link";
 import { VisibleError } from "../error";
 import { PrivateKey } from "@pulumi/tls";
+import * as pulumi from "@pulumi/pulumi";
+
 export type { VpcArgs as VpcV1Args } from "./vpc-v1";
 
 export interface VpcArgs {
@@ -1021,10 +1023,17 @@ export class Vpc extends Component implements Link.Linkable {
               ),
             );
 
-            new ec2.EipAssociation(`${name}NatInstanceEipAssociation${i + 1}`, {
-              instanceId: instance.id,
-              allocationId: elasticIps[i]?.id ?? nat.ip![i],
-            });
+            new ec2.EipAssociation(
+              `${name}NatInstanceEipAssociation${i + 1}`,
+              {
+                instanceId: instance.id,
+                allocationId: elasticIps[i]?.id ?? nat.ip![i],
+              },
+              {
+                parent: self,
+                aliases: [{ parent: pulumi.rootStackResource }],
+              },
+            );
 
             return instance;
           }),
