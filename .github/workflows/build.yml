@@ -9,7 +9,6 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
-  id-token: write
   contents: write
   packages: write
 
@@ -43,5 +42,3 @@ jobs:
           distribution: goreleaser
           version: latest
           args: build --snapshot --clean
-        env:
-          NPM_CONFIG_PROVENANCE: false
