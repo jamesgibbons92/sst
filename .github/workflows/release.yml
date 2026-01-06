@@ -9,6 +9,7 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
+  id-token: write
   contents: write
   packages: write
 
@@ -28,12 +29,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - run: |
-          npm config set //registry.npmjs.org/:_authToken $NODE_AUTH_TOKEN
-          npm whoami
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - run: git fetch --force --tags
 
@@ -56,7 +51,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.SST_GITHUB_TOKEN }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
+          NPM_CONFIG_PROVENANCE: false
 
       - run: |
           cd sdk/js
           bun run release
+        env:
+          NPM_CONFIG_PROVENANCE: false
