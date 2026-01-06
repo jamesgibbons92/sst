@@ -9,6 +9,7 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 permissions:
+  id-token: write
   contents: write
   packages: write
 
@@ -22,12 +23,6 @@ jobs:
       - uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
-
-      - run: |
-          npm config set //registry.npmjs.org/:_authToken $NODE_AUTH_TOKEN
-          npm whoami
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - run: git fetch --force --tags
 
@@ -48,3 +43,5 @@ jobs:
           distribution: goreleaser
           version: latest
           args: build --snapshot --clean
+        env:
+          NPM_CONFIG_PROVENANCE: false
