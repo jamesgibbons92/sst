@@ -588,22 +588,25 @@ export class Vpc extends Component implements Link.Linkable {
               ),
             );
           }
-          return ec2
-            .getEipsOutput({
-              filters: [
-                {
-                  name: "instance-id",
-                  values: natInstances.map((instance) => instance.id),
-                },
-              ],
-            })
-            .allocationIds.apply((ids) =>
-              ids.map((id, i) =>
-                ec2.Eip.get(`${name}ElasticIp${i + 1}`, id, undefined, {
-                  parent: self,
-                }),
-              ),
-            );
+          if (natInstances.length) {
+            return ec2
+              .getEipsOutput({
+                filters: [
+                  {
+                    name: "instance-id",
+                    values: natInstances.map((instance) => instance.id),
+                  },
+                ],
+              })
+              .allocationIds.apply((ids) =>
+                ids.map((id, i) =>
+                  ec2.Eip.get(`${name}ElasticIp${i + 1}`, id, undefined, {
+                    parent: self,
+                  }),
+                ),
+              );
+          }
+          return output([]);
         },
       );
       const bastionInstance = ec2
@@ -720,9 +723,10 @@ export class Vpc extends Component implements Link.Linkable {
           ]) => {
             if (!bastion) return;
             return {
-              ip: natInstances.length
-                ? elasticIps[0]?.publicIp
-                : bastion.publicIp,
+              ip:
+                natInstances.length && elasticIps[0]
+                  ? elasticIps[0].publicIp
+                  : bastion.publicIp,
               username: "ec2-user",
               privateKey: privateKeyValue!,
               subnets: [...privateSubnets, ...publicSubnets].map(
