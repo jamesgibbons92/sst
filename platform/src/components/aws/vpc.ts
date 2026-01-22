@@ -590,14 +590,19 @@ export class Vpc extends Component implements Link.Linkable {
           }
           if (natInstances.length) {
             return ec2
-              .getEipsOutput({
-                filters: [
-                  {
-                    name: "instance-id",
-                    values: natInstances.map((instance) => instance.id),
-                  },
-                ],
-              })
+              .getEipsOutput(
+                {
+                  filters: [
+                    {
+                      name: "instance-id",
+                      values: natInstances.map((instance) => instance.id),
+                    },
+                  ],
+                },
+                {
+                  parent: self,
+                },
+              )
               .allocationIds.apply((ids) =>
                 ids.map((id, i) =>
                   ec2.Eip.get(`${name}ElasticIp${i + 1}`, id, undefined, {
