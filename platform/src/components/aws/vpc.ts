@@ -557,16 +557,6 @@ export class Vpc extends Component implements Link.Linkable {
             ),
         );
       });
-      const elasticIps = natGateways.apply((nats) =>
-        nats.map((nat, i) =>
-          ec2.Eip.get(
-            `${name}ElasticIp${i + 1}`,
-            nat.allocationId as Output<string>,
-            undefined,
-            { parent: self },
-          ),
-        ),
-      );
       const natInstances = ec2
         .getInstancesOutput(
           {
@@ -584,6 +574,46 @@ export class Vpc extends Component implements Link.Linkable {
             }),
           ),
         );
+      const elasticIps = all([natGateways, natInstances]).apply(
+        ([natGateways, natInstances]) => {
+          if (natGateways.length) {
+            return output(
+              natGateways.map((nat, i) =>
+                ec2.Eip.get(
+                  `${name}ElasticIp${i + 1}`,
+                  nat.allocationId as Output<string>,
+                  undefined,
+                  { parent: self },
+                ),
+              ),
+            );
+          }
+          if (natInstances.length) {
+            return ec2
+              .getEipsOutput(
+                {
+                  filters: [
+                    {
+                      name: "instance-id",
+                      values: natInstances.map((instance) => instance.id),
+                    },
+                  ],
+                },
+                {
+                  parent: self,
+                },
+              )
+              .allocationIds.apply((ids) =>
+                ids.map((id, i) =>
+                  ec2.Eip.get(`${name}ElasticIp${i + 1}`, id, undefined, {
+                    parent: self,
+                  }),
+                ),
+              );
+          }
+          return output([]);
+        },
+      );
       const bastionInstance = ec2
         .getInstancesOutput(
           {
@@ -683,16 +713,25 @@ export class Vpc extends Component implements Link.Linkable {
         _tunnel: all([
           self.bastionInstance,
           self.elasticIps,
+          self.natInstances,
           self.privateKeyValue,
           self._privateSubnets,
           self._publicSubnets,
         ]).apply(
-          ([bastion, elasticIps, privateKeyValue, privateSubnets, publicSubnets]) => {
+          ([
+            bastion,
+            elasticIps,
+            natInstances,
+            privateKeyValue,
+            privateSubnets,
+            publicSubnets,
+          ]) => {
             if (!bastion) return;
             return {
-              ip: self.natInstances.apply((instances) =>
-                instances.length ? elasticIps[0]?.publicIp : bastion.publicIp,
-              ),
+              ip:
+                natInstances.length && elasticIps[0]
+                  ? elasticIps[0].publicIp
+                  : bastion.publicIp,
               username: "ec2-user",
               privateKey: privateKeyValue!,
               subnets: [...privateSubnets, ...publicSubnets].map(
@@ -871,7 +910,12 @@ export class Vpc extends Component implements Link.Linkable {
     function createElasticIps() {
       return all([nat, publicSubnets]).apply(([nat, subnets]) => {
         if (!nat) return [];
-        if (nat?.ip) return [];
+        if (nat.ip)
+          return nat.ip.map((allocationId, i) =>
+            ec2.Eip.get(`${name}ElasticIp${i + 1}`, allocationId, undefined, {
+              parent: self,
+            }),
+          );
 
         return subnets.map(
           (_, i) =>
