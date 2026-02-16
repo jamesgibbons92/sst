@@ -154,6 +154,26 @@ export interface VpcArgs {
            * ```
            */
           ami?: Input<string>;
+          /**
+           * The Name of an existing IAM role to use for the NAT instance.
+           *
+           * By default, a new IAM role with SSM managed instance core permissions is created.
+           * Use this to provide a custom role with additional permissions or to comply with
+           * organizational policies.
+           *
+           * @default A new IAM role is created
+           * @example
+           * ```ts
+           * {
+           *   nat: {
+           *     ec2: {
+           *       role: "my-nat-instance-role"
+           *     }
+           *   }
+           * }
+           * ```
+           */
+          role?: Input<string>;
         }>;
       }
   >;
@@ -769,18 +789,18 @@ export class Vpc extends Component implements Link.Linkable {
         if (nat === "ec2") {
           return {
             type: "ec2" as const,
-            ec2: { instance: "t4g.nano", ami: undefined },
+            ec2: { instance: "t4g.nano", ami: undefined, role: undefined },
           };
         }
         if (nat) {
           if (nat.ec2 && nat.type === "managed")
             throw new VisibleError(
-              `"nat.type" cannot be "managed" when "nat.ec2" is specified`,
+              `The "nat.type" cannot be "managed" when "nat.ec2" is specified.`,
             );
 
-          if (!nat.type)
+          if (!nat.type && !nat.ec2)
             throw new VisibleError(
-              `Missing "nat.type" for the "${name}" VPC. It is required when "nat.ec2" is not specified`,
+              `Missing "nat.type" for the "${name}" VPC. It is required when "nat.ec2" is not specified.`,
             );
 
           if (nat.ip && nat.ip.length !== zones.length)
@@ -792,7 +812,11 @@ export class Vpc extends Component implements Link.Linkable {
             ? {
                 type: "ec2" as const,
                 ip: nat.ip,
-                ec2: nat.ec2 ?? { instance: "t4g.nano" },
+                ec2: {
+                  instance: nat.ec2?.instance ?? "t4g.nano",
+                  ami: nat.ec2?.ami,
+                  role: nat.ec2?.role,
+                },
               }
             : {
                 type: "managed" as const,
@@ -987,28 +1011,35 @@ export class Vpc extends Component implements Link.Linkable {
           ),
         );
 
-        const role = new iam.Role(
-          `${name}NatInstanceRole`,
-          {
-            assumeRolePolicy: iam.getPolicyDocumentOutput({
-              statements: [
-                {
-                  actions: ["sts:AssumeRole"],
-                  principals: [
+        const role = nat.ec2.role
+          ? iam.Role.get(
+              `${name}NatInstanceRole`,
+              nat.ec2.role,
+              {},
+              { parent: self },
+            )
+          : new iam.Role(
+              `${name}NatInstanceRole`,
+              {
+                assumeRolePolicy: iam.getPolicyDocumentOutput({
+                  statements: [
                     {
-                      type: "Service",
-                      identifiers: ["ec2.amazonaws.com"],
+                      actions: ["sts:AssumeRole"],
+                      principals: [
+                        {
+                          type: "Service",
+                          identifiers: ["ec2.amazonaws.com"],
+                        },
+                      ],
                     },
                   ],
-                },
-              ],
-            }).json,
-            managedPolicyArns: [
-              interpolate`arn:${partition}:iam::aws:policy/AmazonSSMManagedInstanceCore`,
-            ],
-          },
-          { parent: self },
-        );
+                }).json,
+                managedPolicyArns: [
+                  interpolate`arn:${partition}:iam::aws:policy/AmazonSSMManagedInstanceCore`,
+                ],
+              },
+              { parent: self },
+            );
 
         const instanceProfile = new iam.InstanceProfile(
           `${name}NatInstanceProfile`,
