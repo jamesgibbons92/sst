@@ -223,11 +223,6 @@ func CmdMosaic(c *cli.Cli) error {
 		return server.Start(c.Context, p)
 	})
 
-	wg.Go(func() error {
-		defer c.Cancel()
-		return deployer.Start(c.Context, p, server)
-	})
-
 	currentExecutable, _ := os.Executable()
 
 	mode := c.String("mode")
@@ -238,6 +233,13 @@ func CmdMosaic(c *cli.Cli) error {
 			mode = "mono"
 		}
 	}
+
+	evts := bus.Subscribe(&project.CompleteEvent{})
+
+	wg.Go(func() error {
+		defer c.Cancel()
+		return deployer.Start(c.Context, p, server)
+	})
 
 	if mode == "multi" {
 		multi, err := multiplexer.New()
@@ -258,7 +260,6 @@ func CmdMosaic(c *cli.Cli) error {
 			multi.Start()
 		}()
 		wg.Go(func() error {
-			evts := bus.Subscribe(&project.CompleteEvent{})
 			defer c.Cancel()
 			for {
 				select {
@@ -267,6 +268,9 @@ func CmdMosaic(c *cli.Cli) error {
 				case unknown := <-evts:
 					switch evt := unknown.(type) {
 					case *project.CompleteEvent:
+						if evt.Old {
+							continue
+						}
 						for _, d := range evt.Devs {
 							if d.Command == "" {
 								continue
@@ -321,7 +325,6 @@ func CmdMosaic(c *cli.Cli) error {
 		})
 
 		wg.Go(func() error {
-			evts := bus.Subscribe(&project.CompleteEvent{})
 			defer c.Cancel()
 			for {
 				select {
@@ -330,6 +333,9 @@ func CmdMosaic(c *cli.Cli) error {
 				case unknown := <-evts:
 					switch evt := unknown.(type) {
 					case *project.CompleteEvent:
+						if evt.Old {
+							continue
+						}
 						for _, d := range evt.Devs {
 							if d.Command == "" {
 								continue
