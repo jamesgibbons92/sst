@@ -295,13 +295,14 @@ func (p *Project) RunNext(ctx context.Context, input *StackInput) error {
 		"--event-log", eventlogPath,
 	}
 
-	if input.Command == "deploy" || input.Command == "diff" {
+	if input.Command == "deploy" {
 		upgradeMsgs := p.checkProviderUpgrade(completed.Resources)
-
 		if len(upgradeMsgs) > 0 {
 			return util.NewReadableError(nil, strings.Join(upgradeMsgs, "\n\n"))
 		}
+	}
 
+	if input.Command == "deploy" || input.Command == "diff" {
 		for provider, opts := range p.app.Providers {
 			for key, value := range opts.(map[string]interface{}) {
 				switch v := value.(type) {
