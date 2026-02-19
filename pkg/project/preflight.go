@@ -19,7 +19,7 @@ var migrationNotices = []migrationNotice{
 		providerName: "aws",
 		fromVersion:  "6.0.0",
 		toVersion:    "7.0.0",
-		message:      "Detected AWS provider upgrade to v7 (possibly due to an internal SST upgrade)\n\nUpgrading from v6 to v7 introduces breaking changes and requires a manual state migration before deployment.\n\nYou may be affected only if you are using the AWS provider for your own resources, as SST components are already prepared for the upgrade.\n\nRefer to the Pulumi migration guide for an upgrade path:\nhttps://www.pulumi.com/registry/packages/aws/how-to-guides/7-0-migration\n\nSince this is a one-way migration, it is advisable to run `sst diff` to check for unexpected changes.\n\nOnce you are confident in the changes, run `sst refresh` to migrate your state and remove this notice. If you have multiple stages, you may need to run `sst refresh --stage <name>` for each one.",
+		message:      "Detected AWS provider upgrade to v7 \x1b[2m(possibly by an internal SST upgrade)\x1b[0m\n\nUpgrading from v6 to v7 introduces breaking changes that require a manual state migration before deployment.\n\nYou may be affected only if you are using the AWS provider for your own resources, as SST components are already prepared for the upgrade.\n\nRefer to the Pulumi migration guide for an upgrade path:\nhttps://www.pulumi.com/registry/packages/aws/how-to-guides/7-0-migration\n\nSince this is a one-way migration, it is advisable to run `sst diff` to check for unexpected changes.\n\nOnce you are confident in the changes, run `sst refresh` to migrate your state and remove this notice. If you have multiple stages, you may need to run `sst refresh --stage <name>` for each one.",
 	},
 }
 
