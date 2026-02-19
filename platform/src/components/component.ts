@@ -159,6 +159,7 @@ export class Component extends ComponentResource {
               "aws:rds/proxyDefaultTargetGroup:ProxyDefaultTargetGroup",
               "aws:rds/proxyTarget:ProxyTarget",
               "aws:route53/record:Record",
+              "aws:s3/bucketCorsConfigurationV2:BucketCorsConfigurationV2",
               "aws:s3/bucketCorsConfiguration:BucketCorsConfiguration",
               "aws:s3/bucketNotification:BucketNotification",
               "aws:s3/bucketObject:BucketObject",
