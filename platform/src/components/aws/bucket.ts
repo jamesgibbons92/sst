@@ -521,7 +521,7 @@ export interface BucketArgs {
     /**
      * Transform the S3 Bucket lifecycle resource.
      * */
-    lifecycle?: Transform<s3.BucketLifecycleConfigurationV2Args>;
+    lifecycle?: Transform<s3.BucketLifecycleConfigurationArgs>;
     /**
      * Transform the public access block resource that's attached to the Bucket.
      *
@@ -990,7 +990,7 @@ export class Bucket extends Component implements Link.Linkable {
           return resolvedId;
         });
 
-        return new s3.BucketLifecycleConfigurationV2(
+        return new s3.BucketLifecycleConfiguration(
           ...transform(
             args.transform?.lifecycle,
             `${name}Lifecycle`,

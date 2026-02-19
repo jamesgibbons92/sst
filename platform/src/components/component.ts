@@ -168,6 +168,7 @@ export class Component extends ComponentResource {
               "aws:s3/bucketPublicAccessBlock:BucketPublicAccessBlock",
               "aws:s3/bucketVersioningV2:BucketVersioningV2",
               "aws:s3/bucketLifecycleConfigurationV2:BucketLifecycleConfigurationV2",
+              "aws:s3/bucketLifecycleConfiguration:BucketLifecycleConfiguration",
               "aws:s3/bucketWebsiteConfigurationV2:BucketWebsiteConfigurationV2",
               "aws:s3/bucketVersioning:BucketVersioning",
               "aws:s3/bucketWebsiteConfiguration:BucketWebsiteConfiguration",
