@@ -323,6 +323,14 @@ func (p *Project) RunNext(ctx context.Context, input *StackInput) error {
 		args = append([]string{"destroy", "--yes", "-f"}, args...)
 	}
 
+	if (input.Command == "diff" || input.Command == "deploy") && input.PolicyPath != "" {
+		policyPath, err := p.ResolvePolicyPackPath(input.PolicyPath)
+		if err != nil {
+			return util.NewReadableError(nil, err.Error())
+		}
+		args = append(args, "--policy-pack", policyPath)
+	}
+
 	if input.Target != nil {
 		for _, item := range input.Target {
 			index := slices.IndexFunc(completed.Resources, func(res apitype.ResourceV3) bool {
@@ -364,6 +372,9 @@ func (p *Project) RunNext(ctx context.Context, input *StackInput) error {
 	errors := []Error{}
 	finished := false
 	importDiffs := map[string][]ImportDiff{}
+	hasPolicyFlag := input.PolicyPath != ""
+	hasPolicyEvents := false
+	hasPolicyViolations := false
 
 	partial := make(chan int, 1000)
 	partialContext, partialCancel := context.WithCancel(ctx)
@@ -460,6 +471,35 @@ loop:
 		if err != nil {
 			log.Error("failed to unmarshal event", "err", err)
 			continue
+		}
+
+		if event.PolicyEvent != nil {
+			hasPolicyEvents = true
+			message := fmt.Sprintf("Policy: %s\n%s",
+				event.PolicyEvent.PolicyName,
+				strings.TrimSpace(event.PolicyEvent.Message))
+
+			if event.PolicyEvent.EnforcementLevel == "mandatory" {
+				log.Info("policy violation",
+					"policy", event.PolicyEvent.PolicyName,
+					"urn", event.PolicyEvent.ResourceURN)
+
+				errors = append(errors, Error{
+					Message: message,
+					URN:     event.PolicyEvent.ResourceURN,
+				})
+				hasPolicyViolations = true
+			} else if event.PolicyEvent.EnforcementLevel == "advisory" {
+				log.Info("policy advisory",
+					"policy", event.PolicyEvent.PolicyName,
+					"urn", event.PolicyEvent.ResourceURN)
+
+				bus.Publish(&PolicyAdvisoryEvent{
+					Policy:  event.PolicyEvent.PolicyName,
+					Message: strings.TrimSpace(event.PolicyEvent.Message),
+					URN:     event.PolicyEvent.ResourceURN,
+				})
+			}
 		}
 
 		if event.DiagnosticEvent != nil && event.DiagnosticEvent.Severity == "error" {
@@ -583,7 +623,14 @@ loop:
 	}
 
 	log.Info("done running stack command", "resources", len(complete.Resources))
+
 	if cmd.ProcessState.ExitCode() > 0 {
+		if hasPolicyViolations {
+			return ErrPolicyViolation
+		}
+		if hasPolicyFlag && !hasPolicyEvents && len(errors) == 0 {
+			return ErrPolicyConfigError
+		}
 		return ErrStackRunFailed
 	}
 	return nil

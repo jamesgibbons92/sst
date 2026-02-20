@@ -157,6 +157,12 @@ func CmdMosaic(c *cli.Cli) error {
 	if err != nil {
 		return err
 	}
+	policyPath := c.String("policy")
+	if policyPath != "" {
+		if _, err := p.ResolvePolicyPackPath(policyPath); err != nil {
+			return util.NewReadableError(nil, err.Error())
+		}
+	}
 	os.Setenv("SST_STAGE", p.App().Stage)
 	slog.Info("mosaic", "project", p.PathRoot())
 
@@ -238,7 +244,7 @@ func CmdMosaic(c *cli.Cli) error {
 
 	wg.Go(func() error {
 		defer c.Cancel()
-		return deployer.Start(c.Context, p, server)
+		return deployer.Start(c.Context, p, server, policyPath)
 	})
 
 	if mode == "multi" {
