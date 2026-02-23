@@ -20,6 +20,7 @@ import (
 	"github.com/sst/sst/v3/cmd/sst/mosaic/monoplexer"
 	"github.com/sst/sst/v3/cmd/sst/mosaic/multiplexer"
 	"github.com/sst/sst/v3/cmd/sst/mosaic/socket"
+	"github.com/sst/sst/v3/cmd/sst/mosaic/ui"
 	"github.com/sst/sst/v3/cmd/sst/mosaic/watcher"
 	"github.com/sst/sst/v3/internal/util"
 	"github.com/sst/sst/v3/pkg/bus"
@@ -89,7 +90,7 @@ func CmdMosaic(c *cli.Cli) error {
 				go func() {
 					evts <- true
 				}()
-				fmt.Println("[timeout]")
+				fmt.Println("\n"+ui.TEXT_DIM.Render("[timeout]"))
 				timer.Reset(timeout)
 				continue
 			case _, ok := <-evts:
@@ -126,6 +127,7 @@ func CmdMosaic(c *cli.Cli) error {
 					for k, v := range nextEnv.Env {
 						cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 					}
+					process.Detach(cmd)
 					cmd.Stdin = os.Stdin
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stderr
@@ -156,6 +158,12 @@ func CmdMosaic(c *cli.Cli) error {
 	p, err := c.InitProject()
 	if err != nil {
 		return err
+	}
+	policyPath := c.String("policy")
+	if policyPath != "" {
+		if _, err := p.ResolvePolicyPackPath(policyPath); err != nil {
+			return util.NewReadableError(nil, err.Error())
+		}
 	}
 	os.Setenv("SST_STAGE", p.App().Stage)
 	slog.Info("mosaic", "project", p.PathRoot())
@@ -238,7 +246,7 @@ func CmdMosaic(c *cli.Cli) error {
 
 	wg.Go(func() error {
 		defer c.Cancel()
-		return deployer.Start(c.Context, p, server)
+		return deployer.Start(c.Context, p, server, policyPath)
 	})
 
 	if mode == "multi" {

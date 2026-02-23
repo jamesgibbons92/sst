@@ -825,10 +825,10 @@ export class ApiGatewayV1 extends Component implements Link.Linkable {
   public get url() {
     return this.apigDomain && this.apiMapping
       ? all([this.apigDomain.domainName, this.apiMapping.basePath]).apply(
-          ([domain, key]) =>
-            key ? `https://${domain}/${key}/` : `https://${domain}`,
-        )
-      : interpolate`https://${this.api.id}.execute-api.${this.region}.amazonaws.com/${$app.stage}/`;
+        ([domain, key]) =>
+          key ? `https://${domain}/${key}/` : `https://${domain}`,
+      )
+      : interpolate`https://${this.api.id}.execute-api.${this.region}.amazonaws.com/${this.stage?.stageName ?? $app.stage}/`;
   }
 
   /**
