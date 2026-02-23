@@ -5,27 +5,31 @@ description: Migrate your SST v3 apps to v4.
 
 SST v4 upgrades the underlying [Pulumi AWS provider](https://www.pulumi.com/registry/packages/aws/) from v6 to v7. This guide covers migrating your SST v3 apps to v4.
 
+For the full list of upstream changes, refer to the [Pulumi AWS v7 migration guide](https://www.pulumi.com/registry/packages/aws/how-to-guides/7-0-migration).
+
 :::tip
 SST components are already updated for v7. Most users only need to run `sst refresh` and deploy.
 :::
 
 ---
 
+## Breaking changes
+
+SST components are already updated for v7 — **no code changes are needed** if you are only using SST components without transforms or direct `@pulumi/aws` usage.
+
+The internal changes to SST components were minimal — mostly S3 resource renames (dropping the `V2` suffix) and switching from `tags` to `tagsAll`. You can see the full list of changes in the [upgrade PR](https://github.com/anomalyco/sst/pull/6259/).
+
+If you are using the AWS provider directly or using transforms, refer to the [Pulumi AWS v7 migration guide](https://www.pulumi.com/registry/packages/aws/how-to-guides/7-0-migration) for the full list of breaking changes.
+
+---
+
 ## Migration steps
 
-When you update SST and the AWS provider version changes, `sst deploy` and `sst diff` will be blocked until you migrate your state.
-
-You'll see a message like:
-
-```
-Detected AWS provider upgrade to v7
-```
-
-Here's how to migrate:
+When you update SST and the AWS provider version changes, `sst deploy` will be blocked until you migrate your state:
 
 1. **Review changes**
 
-   Run `sst diff` to preview what will change. This is a one-way migration, so it's worth reviewing first.
+   Run `sst diff` to preview what will change. This is a **one-way migration**, so it's worth reviewing first.
 
    ```bash frame="none"
    npx sst diff
@@ -33,106 +37,22 @@ Here's how to migrate:
 
 2. **Migrate state**
 
-   Run `sst refresh` to migrate your Pulumi state to v7. This updates your state file to reflect the new resource types.
+   Run `sst refresh` to migrate your state.
 
    ```bash frame="none"
    npx sst refresh
    ```
 
-3. **Repeat for each stage**
-
-   If you have multiple stages, refresh each one.
+   Repeat for each stage.
 
    ```bash frame="none"
    npx sst refresh --stage production
    ```
 
-4. **Deploy**
+3. **Deploy**
 
    Once refreshed, deploy as usual.
 
    ```bash frame="none"
    npx sst deploy
    ```
-
----
-
-## Breaking changes
-
-Below are the breaking changes that may affect your app. If you are only using SST components without transforms or direct `@pulumi/aws` usage, **no code changes are needed** — SST handles these internally.
-
----
-
-### `getRegionOutput().name` → `.region`
-
-The `.name` property on `aws.getRegionOutput()` has been removed. Use `.region` instead.
-
-```diff lang="ts" title="sst.config.ts"
-- aws.getRegionOutput().name
-+ aws.getRegionOutput().region
-```
-
-This applies anywhere you reference the region in your `sst.config.ts` or infra code.
-
----
-
-### S3 "V2" resource renames
-
-The `V2`-suffixed S3 resource types have been renamed to their non-suffixed equivalents.
-
-| v6 | v7 |
-|---|---|
-| `s3.BucketV2` | `s3.Bucket` |
-| `s3.BucketCorsConfigurationV2` | `s3.BucketCorsConfiguration` |
-| `s3.BucketVersioningV2` | `s3.BucketVersioning` |
-| `s3.BucketLifecycleConfigurationV2` | `s3.BucketLifecycleConfiguration` |
-| `s3.BucketWebsiteConfigurationV2` | `s3.BucketWebsiteConfiguration` |
-
-If you have a `transform` that references these types, update the type names.
-
-```diff lang="ts" title="sst.config.ts"
-  new sst.aws.Bucket("MyBucket", {
-    transform: {
--     bucket: (args: s3.BucketV2Args) => { ... }
-+     bucket: (args: s3.BucketArgs) => { ... }
-    }
-  });
-```
-
----
-
-### `tags` → `tagsAll`
-
-The `tags` property on AWS resources now only returns tags explicitly set on the resource. To get merged tags including provider-level default tags, use `tagsAll`.
-
-```diff lang="ts"
-- myResource.tags
-+ myResource.tagsAll
-```
-
----
-
-### Elastic IP `vpc` → `domain`
-
-The `vpc` property on `aws.ec2.Eip` has been replaced by `domain`.
-
-```diff lang="ts"
-  new aws.ec2.Eip("MyEip", {
--   vpc: true,
-+   domain: "vpc",
-  });
-```
-
----
-
-### Other changes
-
-These are less common but may affect you if you use the AWS provider directly:
-
-- **`aws.ecr.getCredentials()`** — replaced by `getAuthorizationToken()`
-- **EC2 `cpuCoreCount`/`cpuThreadsPerCore`** — replaced by `cpuOptions` block
-- **EC2 `userData`** — no longer hashed; use `userDataBase64` for encoded data
-- **`aws.ec2.getAmi()`** — now requires `owner` or `filter` when using `mostRecent`
-- **OpsWorks, SimpleDB, WorkLink** — resources removed (services end-of-life)
-
-For the full list, see the [Pulumi AWS v7 migration guide](https://www.pulumi.com/registry/packages/aws/how-to-guides/7-0-migration).

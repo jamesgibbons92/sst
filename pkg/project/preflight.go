@@ -19,7 +19,7 @@ var migrationNotices = []migrationNotice{
 		providerName: "aws",
 		fromVersion:  "6.0.0",
 		toVersion:    "7.0.0",
-		message:      "Detected AWS provider upgrade to v7 \x1b[2m(possibly by an internal SST upgrade)\x1b[0m\n\nUpgrading from v6 to v7 introduces breaking changes that require a manual state migration before deployment.\n\nYou may be affected if you are using the AWS provider directly or using transforms. SST components are already prepared for the upgrade.\n\nFollow the SST migration guide:\nhttps://sst.dev/docs/migrate-from-v3\n\nSince this is a one-way migration, it is advisable to run `sst diff` to check for unexpected changes.\n\nOnce you are confident in the changes, run `sst refresh` to migrate your state and remove this notice. If you have multiple stages, you may need to run `sst refresh --stage <name>` for each one.",
+		message:      "Detected AWS provider upgrade from v6 to v7.\n\nA one-time state migration is required before you can deploy.\nSST components are already updated — you may be affected if you\nuse transforms or the AWS provider directly.\n\n1. Run `sst diff` to preview changes\n2. Run `sst refresh` to migrate state (repeat for each stage)\n3. Run `sst deploy`\n\nMigration guide: https://sst.dev/docs/migrate-from-v3",
 	},
 }
 
