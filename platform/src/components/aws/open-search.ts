@@ -388,16 +388,16 @@ Listening on "${dev.url}"...`,
       return args.password
         ? output(args.password)
         : new RandomPassword(
-            `${name}Password`,
-            {
-              length: 32,
-              minLower: 1,
-              minUpper: 1,
-              minNumeric: 1,
-              minSpecial: 1,
-            },
-            { parent: self },
-          ).result;
+          `${name}Password`,
+          {
+            length: 32,
+            minLower: 1,
+            minUpper: 1,
+            minNumeric: 1,
+            minSpecial: 1,
+          },
+          { parent: self },
+        ).result;
     }
 
     function createSecret() {

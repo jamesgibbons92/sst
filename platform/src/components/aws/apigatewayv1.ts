@@ -539,73 +539,73 @@ export interface ApiGatewayV1RouteArgs {
   auth?: Input<
     | false
     | {
+      /**
+       * Enable IAM authorization for a given API route.
+       *
+       * When IAM auth is enabled, clients need to use Signature Version 4 to sign their requests with their AWS credentials.
+       */
+      iam?: Input<boolean>;
+      /**
+       * Enable custom Lambda authorization for a given API route. Pass in the authorizer ID.
+       * @example
+       * ```js
+       * {
+       *   auth: {
+       *     custom: myAuthorizer.id
+       *   }
+       * }
+       * ```
+       *
+       * Where `myAuthorizer` is:
+       *
+       * ```js
+       * const userPool = new aws.cognito.UserPool();
+       * const myAuthorizer = api.addAuthorizer({
+       *   name: "MyAuthorizer",
+       *   userPools: [userPool.arn]
+       * });
+       * ```
+       */
+      custom?: Input<string>;
+      /**
+       * Enable Cognito User Pool authorization for a given API route.
+       *
+       * @example
+       * You can configure JWT auth.
+       *
+       * ```js
+       * {
+       *   auth: {
+       *     cognito: {
+       *       authorizer: myAuthorizer.id,
+       *       scopes: ["read:profile", "write:profile"]
+       *     }
+       *   }
+       * }
+       * ```
+       *
+       * Where `myAuthorizer` is:
+       *
+       * ```js
+       * const userPool = new aws.cognito.UserPool();
+       *
+       * const myAuthorizer = api.addAuthorizer({
+       *   name: "MyAuthorizer",
+       *   userPools: [userPool.arn]
+       * });
+       * ```
+       */
+      cognito?: Input<{
         /**
-         * Enable IAM authorization for a given API route.
-         *
-         * When IAM auth is enabled, clients need to use Signature Version 4 to sign their requests with their AWS credentials.
+         * Authorizer ID of the Cognito User Pool authorizer.
          */
-        iam?: Input<boolean>;
+        authorizer: Input<string>;
         /**
-         * Enable custom Lambda authorization for a given API route. Pass in the authorizer ID.
-         * @example
-         * ```js
-         * {
-         *   auth: {
-         *     custom: myAuthorizer.id
-         *   }
-         * }
-         * ```
-         *
-         * Where `myAuthorizer` is:
-         *
-         * ```js
-         * const userPool = new aws.cognito.UserPool();
-         * const myAuthorizer = api.addAuthorizer({
-         *   name: "MyAuthorizer",
-         *   userPools: [userPool.arn]
-         * });
-         * ```
+         * Defines the permissions or access levels that the authorization token grants.
          */
-        custom?: Input<string>;
-        /**
-         * Enable Cognito User Pool authorization for a given API route.
-         *
-         * @example
-         * You can configure JWT auth.
-         *
-         * ```js
-         * {
-         *   auth: {
-         *     cognito: {
-         *       authorizer: myAuthorizer.id,
-         *       scopes: ["read:profile", "write:profile"]
-         *     }
-         *   }
-         * }
-         * ```
-         *
-         * Where `myAuthorizer` is:
-         *
-         * ```js
-         * const userPool = new aws.cognito.UserPool();
-         *
-         * const myAuthorizer = api.addAuthorizer({
-         *   name: "MyAuthorizer",
-         *   userPools: [userPool.arn]
-         * });
-         * ```
-         */
-        cognito?: Input<{
-          /**
-           * Authorizer ID of the Cognito User Pool authorizer.
-           */
-          authorizer: Input<string>;
-          /**
-           * Defines the permissions or access levels that the authorization token grants.
-           */
-          scopes?: Input<Input<string>[]>;
-        }>;
-      }
+        scopes?: Input<Input<string>[]>;
+      }>;
+    }
   >;
   /**
    * Specify if an API key is required for the route. By default, an API key is not
@@ -798,9 +798,9 @@ export class ApiGatewayV1 extends Component implements Link.Linkable {
           ? { types: "REGIONAL" as const }
           : endpoint.type === "private"
             ? {
-                types: "PRIVATE" as const,
-                vpcEndpointIds: endpoint.vpcEndpointIds,
-              }
+              types: "PRIVATE" as const,
+              vpcEndpointIds: endpoint.vpcEndpointIds,
+            }
             : { types: "EDGE" as const };
       });
     }
@@ -1577,28 +1577,28 @@ export class ApiGatewayV1 extends Component implements Link.Linkable {
       return all([domain, endpointType]).apply(([domain, endpointType]) =>
         domain.nameId
           ? apigateway.DomainName.get(
-              `${name}DomainName`,
-              domain.nameId,
-              {},
-              { parent },
-            )
+            `${name}DomainName`,
+            domain.nameId,
+            {},
+            { parent },
+          )
           : new apigateway.DomainName(
-              ...transform(
-                args.transform?.domainName,
-                `${name}DomainName`,
-                {
-                  domainName: domain?.name,
-                  endpointConfiguration: { types: endpointType },
-                  ...(endpointType === "REGIONAL"
-                    ? {
-                        regionalCertificateArn:
-                          certificateArn as Output<string>,
-                      }
-                    : { certificateArn: certificateArn as Output<string> }),
-                },
-                { parent },
-              ),
+            ...transform(
+              args.transform?.domainName,
+              `${name}DomainName`,
+              {
+                domainName: domain?.name,
+                endpointConfiguration: { types: endpointType },
+                ...(endpointType === "REGIONAL"
+                  ? {
+                    regionalCertificateArn:
+                      certificateArn as Output<string>,
+                  }
+                  : { certificateArn: certificateArn as Output<string> }),
+              },
+              { parent },
             ),
+          ),
       );
     }
 
