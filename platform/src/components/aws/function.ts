@@ -349,7 +349,7 @@ export interface FunctionArgs {
    * @example
    * ```js
    * {
-   *   runtime: "nodejs22.x"
+   *   runtime: "nodejs24.x"
    * }
    * ```
    */
@@ -357,6 +357,7 @@ export interface FunctionArgs {
     | "nodejs18.x"
     | "nodejs20.x"
     | "nodejs22.x"
+    | "nodejs24.x"
     | "go"
     | "rust"
     | "provided.al2023"
