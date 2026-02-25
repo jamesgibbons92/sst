@@ -1002,6 +1002,14 @@ var root = &cli.Command{
 						Long:  "Exclude the specified component from the operation.",
 					},
 				},
+				{
+					Name: "dev",
+					Type: "bool",
+					Description: cli.Description{
+						Short: "Refresh in dev mode",
+						Long:  "Refresh the dev version of this stage.",
+					},
+				},
 			},
 			Run: CmdRefresh,
 		},
