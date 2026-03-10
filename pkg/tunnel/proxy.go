@@ -22,9 +22,9 @@ import (
 )
 
 type SSMConfig struct {
-	InstanceID string
-	Region     string
-	Subnets    []string
+	InstanceID string   `json:"instanceId"`
+	Region     string   `json:"region"`
+	Subnets    []string `json:"subnets"`
 }
 
 type SSHConfig struct {

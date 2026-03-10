@@ -139,8 +139,8 @@ var CmdTunnel = &cli.Command{
 					Subnets:    tun.Subnets,
 				})
 			} else if mode == "ssh" {
-				if tun.IP == "" && tun.PrivateKey == "" {
-					slog.Warn("SSH tunnel missing IP, skipping", "name", name)
+				if tun.IP == "" || tun.PrivateKey == "" {
+					slog.Warn("SSH tunnel missing IP or private key, skipping", "name", name)
 					continue
 				}
 				sshConfigs = append(sshConfigs, tunnel.SSHConfig{

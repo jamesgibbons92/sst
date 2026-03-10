@@ -179,7 +179,6 @@ interface BastionRef {
  *
  * ```ts title="sst.config.ts"
  * new sst.aws.Bastion("MyBastion", {
- *   ssh: true,
  *   vpc: {
  *     id: "vpc-0d19d2b8ca2b268a1",
  *     routeSubnets: ["subnet-0b6a2b73896dc8c4c", "subnet-021f7e8f975b2b9c2"],
