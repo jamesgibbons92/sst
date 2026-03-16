@@ -14,6 +14,7 @@ import {
   output,
   secret,
   unsecret,
+  rootStackResource
 } from "@pulumi/pulumi";
 import { bootstrap } from "./helpers/bootstrap.js";
 import { Duration, DurationMinutes, toSeconds } from "../duration.js";
@@ -22,7 +23,7 @@ import { Component, Prettify, Transform, transform } from "../component.js";
 import { Link } from "../link.js";
 import { VisibleError } from "../error.js";
 import type { Input } from "../input.js";
-import { physicalName } from "../naming.js";
+import { logicalName, physicalName } from "../naming.js";
 import { RETENTION } from "./logging.js";
 import {
   cloudwatch,
@@ -1684,6 +1685,10 @@ export class Function extends Component implements Link.Linkable {
       }),
   );
 
+  private static readonly devBridgeCode = lazy(
+    () => new Map<string, Promise<s3.BucketObjectv2>>(),
+  );
+
   public static readonly appsync = lazy(() =>
     rpc.call("Provider.Aws.Appsync", {}),
   );
@@ -2309,6 +2314,7 @@ export class Function extends Component implements Link.Linkable {
         isContainer,
         logGroup.apply((l) => l?.arn),
         dev,
+        region,
       ]).apply(
         async ([
           bundle,
@@ -2318,118 +2324,139 @@ export class Function extends Component implements Link.Linkable {
           isContainer,
           logGroupArn,
           dev,
+          regionName,
         ]) => {
           if (isContainer) return;
 
-          const zipPath = path.resolve(
-            $cli.paths.work,
-            "artifacts",
-            name,
-            "code.zip",
-          );
-          await fs.promises.mkdir(path.dirname(zipPath), {
-            recursive: true,
-          });
+          if (dev) {
+            const cacheKey = `${regionName}:${bundle}`;
+            const cache = Function.devBridgeCode();
+            const existing = cache.get(cacheKey);
+            if (existing) return existing;
 
-          await new Promise(async (resolve, reject) => {
-            const ws = fs.createWriteStream(zipPath);
-            const archive = archiver("zip", {
-              // Ensure deterministic zip file hashes
-              // https://github.com/archiverjs/node-archiver/issues/397#issuecomment-554327338
-              statConcurrency: 1,
-            });
-            archive.on("warning", reject);
-            archive.on("error", reject);
-            // archive has been finalized and the output file descriptor has closed, resolve promise
-            // this has to be done before calling `finalize` since the events may fire immediately after.
-            // see https://www.npmjs.com/package/archiver
-            ws.once("close", () => {
-              resolve(zipPath);
-            });
-            archive.pipe(ws);
-
-            const files = [];
-
-            for (const item of [
-              {
-                from: bundle,
-                to: ".",
-                isDir: true,
-              },
-              ...(!dev ? copyFiles : []),
-            ]) {
-              if (!item.isDir) {
-                files.push({
-                  from: item.from,
-                  to: item.to,
-                });
-              }
-              const found = await glob("**", {
-                cwd: item.from,
-                dot: true,
-                ignore:
-                  sourcemaps?.map((item) => path.relative(bundle, item)) || [],
-              });
-              files.push(
-                ...found.map((file) => ({
-                  from: path.join(item.from, file),
-                  to: path.join(item.to, file),
-                })),
-              );
-            }
-            files.sort((a, b) => a.to.localeCompare(b.to));
-            for (const file of files) {
-              archive.file(file.from, {
-                name: file.to,
-                date: new Date(0),
-              });
-            }
-
-            // Add handler wrapper into the zip
-            if (wrapper) {
-              archive.append(wrapper.content, {
-                name: wrapper.name,
-                date: new Date(0),
-              });
-            }
-
-            await archive.finalize();
-          });
-
-          // Calculate hash of the zip file
-          const hash = crypto.createHash("sha256");
-          hash.update(await fs.promises.readFile(zipPath, "utf-8"));
-          const hashValue = hash.digest("hex");
-          const assetBucket = region.apply((region) =>
-            bootstrap.forRegion(region).then((d) => d.asset),
-          );
-          if (logGroupArn && sourcemaps) {
-            let index = 0;
-            for (const file of sourcemaps) {
-              new s3.BucketObjectv2(
-                `${name}Sourcemap${index}`,
-                {
-                  key: interpolate`sourcemap/${logGroupArn}/${hashValue}.${path.basename(
-                    file,
-                  )}`,
-                  bucket: assetBucket,
-                  source: new asset.FileAsset(file),
-                },
-                { parent, retainOnDelete: true },
-              );
-              index++;
-            }
+            const created = createCode();
+            cache.set(cacheKey, created);
+            created.catch(() => cache.delete(cacheKey));
+            return created;
           }
 
-          return new s3.BucketObjectv2(
-            `${name}Code`,
-            {
-              key: interpolate`assets/${name}-code-${hashValue}.zip`,
-              bucket: assetBucket,
-              source: new asset.FileArchive(zipPath),
-            },
-            { parent },
-          );
+          return createCode();
+
+          async function createCode() {
+            const zipPath = path.resolve(
+              $cli.paths.work,
+              "artifacts",
+              dev ? `dev-bridge-${regionName}` : name,
+              "code.zip",
+            );
+            await fs.promises.mkdir(path.dirname(zipPath), {
+              recursive: true,
+            });
+
+            await new Promise(async (resolve, reject) => {
+              const ws = fs.createWriteStream(zipPath);
+              const archive = archiver("zip", {
+                // Ensure deterministic zip file hashes
+                // https://github.com/archiverjs/node-archiver/issues/397#issuecomment-554327338
+                statConcurrency: 1,
+              });
+              archive.on("warning", reject);
+              archive.on("error", reject);
+              // archive has been finalized and the output file descriptor has closed, resolve promise
+              // this has to be done before calling `finalize` since the events may fire immediately after.
+              // see https://www.npmjs.com/package/archiver
+              ws.once("close", () => {
+                resolve(zipPath);
+              });
+              archive.pipe(ws);
+
+              const files = [];
+
+              for (const item of [
+                {
+                  from: bundle,
+                  to: ".",
+                  isDir: true,
+                },
+                ...(!dev ? copyFiles : []),
+              ]) {
+                if (!item.isDir) {
+                  files.push({
+                    from: item.from,
+                    to: item.to,
+                  });
+                }
+                const found = await glob("**", {
+                  cwd: item.from,
+                  dot: true,
+                  ignore: sourcemaps?.map((item) => path.relative(bundle, item)) || [],
+                });
+                files.push(
+                  ...found.map((file) => ({
+                    from: path.join(item.from, file),
+                    to: path.join(item.to, file),
+                  })),
+                );
+              }
+              files.sort((a, b) => a.to.localeCompare(b.to));
+              for (const file of files) {
+                archive.file(file.from, {
+                  name: file.to,
+                  date: new Date(0),
+                });
+              }
+
+              // Add handler wrapper into the zip
+              if (wrapper) {
+                archive.append(wrapper.content, {
+                  name: wrapper.name,
+                  date: new Date(0),
+                });
+              }
+
+              await archive.finalize();
+            });
+
+            const hash = crypto.createHash("sha256");
+            hash.update(await fs.promises.readFile(zipPath));
+            const hashValue = hash.digest("hex");
+            const assetBucket = region.apply((region) =>
+              bootstrap.forRegion(region).then((d) => d.asset),
+            );
+            if (logGroupArn && sourcemaps) {
+              let index = 0;
+              for (const file of sourcemaps) {
+                new s3.BucketObjectv2(
+                  `${name}Sourcemap${index}`,
+                  {
+                    key: interpolate`sourcemap/${logGroupArn}/${hashValue}.${path.basename(
+                      file,
+                    )}`,
+                    bucket: assetBucket,
+                    source: new asset.FileAsset(file),
+                  },
+                  { parent, retainOnDelete: true },
+                );
+                index++;
+              }
+            }
+
+            return new s3.BucketObjectv2(
+              dev
+                ? `DevBridgeCode${logicalName(regionName)}`
+                : `${name}Code`,
+              {
+                key: dev
+                  ? `assets/dev-bridge-code-${hashValue}.zip`
+                  : interpolate`assets/${name}-code-${hashValue}.zip`,
+                bucket: assetBucket,
+                source: new asset.FileArchive(zipPath),
+              },
+              dev
+                ? { parent: rootStackResource, provider: opts?.provider }
+                : { parent },
+            );
+          }
         },
       );
     }
