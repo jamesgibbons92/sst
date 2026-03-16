@@ -23,6 +23,7 @@ type StackInput struct {
 	Dev        bool
 	Verbose    bool
 	Continue   bool
+	Purge      bool
 	SkipHash   string
 	PolicyPath string
 }

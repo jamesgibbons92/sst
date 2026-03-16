@@ -47,6 +47,7 @@ func CmdRemove(c *cli.Cli) error {
 	err = p.Run(c.Context, &project.StackInput{
 		Command:    "remove",
 		Target:     target,
+		Purge:      c.Bool("purge"),
 		ServerPort: s.Port,
 		Verbose:    c.Bool("verbose"),
 	})

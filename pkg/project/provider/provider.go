@@ -29,6 +29,7 @@ type Home interface {
 	getPassphrase(app, stage string) (string, error)
 	listStages(app string) ([]string, error)
 	cleanup(key, app, stage string) error
+	removePassphrase(app, stage string) error
 	info() (util.KeyValuePairs[string], error)
 }
 
@@ -163,6 +164,19 @@ func Cleanup(backend Home, app, stage string) error {
 		return err
 	}
 	if err := backend.cleanup("snapshot", app, stage); err != nil {
+		return err
+	}
+	return nil
+}
+
+func Purge(backend Home, app, stage string) error {
+	if err := backend.removeData("secret", app, stage); err != nil {
+		return err
+	}
+	if err := backend.removeData("app", app, stage); err != nil {
+		return err
+	}
+	if err := backend.removePassphrase(app, stage); err != nil {
 		return err
 	}
 	return nil

@@ -691,6 +691,22 @@ func (a *AwsHome) getPassphrase(app string, stage string) (string, error) {
 	return *result.Parameter.Value, nil
 }
 
+func (a *AwsHome) removePassphrase(app, stage string) error {
+	ssmClient := ssm.NewFromConfig(a.provider.config)
+
+	_, err := ssmClient.DeleteParameter(context.TODO(), &ssm.DeleteParameterInput{
+		Name: aws.String(a.pathForPassphrase(app, stage)),
+	})
+	if err != nil {
+		var pnf *ssmTypes.ParameterNotFound
+		if errors.As(err, &pnf) {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
 func (a *AwsHome) setPassphrase(app, stage, passphrase string) error {
 	ssmClient := ssm.NewFromConfig(a.provider.config)
 

@@ -169,6 +169,10 @@ func (c *CloudflareHome) removeData(kind, app, stage string) error {
 	return nil
 }
 
+func (c *CloudflareHome) removePassphrase(app, stage string) error {
+	return c.removeData("passphrase", app, stage)
+}
+
 // these should go into secrets manager once it's out of beta
 func (c *CloudflareHome) setPassphrase(app, stage string, passphrase string) error {
 	return c.putData("passphrase", app, stage, bytes.NewReader([]byte(passphrase)))

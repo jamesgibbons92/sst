@@ -65,6 +65,10 @@ func (l *LocalHome) removeData(key, app, stage string) error {
 	return os.Remove(p)
 }
 
+func (c *LocalHome) removePassphrase(app, stage string) error {
+	return c.removeData("passphrase", app, stage)
+}
+
 // these should go into secrets manager once it's out of beta
 func (c *LocalHome) setPassphrase(app, stage string, passphrase string) error {
 	return c.putData("passphrase", app, stage, bytes.NewReader([]byte(passphrase)))

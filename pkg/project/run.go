@@ -670,6 +670,9 @@ loop:
 
 	if input.Command == "remove" && len(complete.Resources) == 0 {
 		provider.Cleanup(p.home, p.app.Name, p.app.Stage)
+		if input.Purge {
+			provider.Purge(p.home, p.app.Name, p.app.Stage)
+		}
 	}
 
 	log.Info("done running stack command", "resources", len(complete.Resources))
