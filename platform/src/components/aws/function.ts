@@ -17,7 +17,7 @@ import {
   rootStackResource
 } from "@pulumi/pulumi";
 import { bootstrap } from "./helpers/bootstrap.js";
-import { Duration, DurationMinutes, toSeconds } from "../duration.js";
+import { Duration, DurationDays, DurationMinutes, toDays, toSeconds } from "../duration.js";
 import { Size, toMBs } from "../size.js";
 import { Component, Prettify, Transform, transform } from "../component.js";
 import { Link } from "../link.js";
@@ -1480,6 +1480,38 @@ export interface FunctionArgs {
      */
     eventInvokeConfig?: Transform<lambda.FunctionEventInvokeConfigArgs>;
   };
+
+  /**
+   * Configure the function as a [Durable Function](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html).
+   *
+   * @example
+   * Enable with defaults.
+   * ```js
+   * {
+   *   durable: true
+   * }
+   * ```
+   *
+   * Customize the execution timeout and retention period.
+   * ```js
+   * {
+   *   durable: {
+    *     timeout: "10 minutes",
+    *     retention: "2 weeks"
+   *   }
+   * }
+   * ```
+   */
+  durable?: boolean | Prettify<{
+    /**
+     * Maximum execution time for the durable function
+     */
+    timeout?: Input<Duration>;
+    /**
+     * Number of days to retain the function's execution state.
+     */
+    retention?: Input<DurationDays>;
+  }>;
   /**
    * @internal
    */
@@ -1672,6 +1704,7 @@ export interface FunctionArgs {
  */
 export class Function extends Component implements Link.Linkable {
   private constructorName: string;
+  private durable: boolean;
   private function: Output<lambda.Function>;
   private role: iam.Role;
   private logGroup: Output<cloudwatch.LogGroup | undefined>;
@@ -1700,6 +1733,7 @@ export class Function extends Component implements Link.Linkable {
   ) {
     super(__pulumiType, name, args, opts);
     this.constructorName = name;
+    this.durable = Boolean(args.durable);
 
     const parent = this;
     const dev = normalizeDev();
@@ -1726,6 +1760,7 @@ export class Function extends Component implements Link.Linkable {
     const volume = normalizeVolume();
     const url = normalizeUrl();
     const copyFiles = normalizeCopyFiles();
+    const durable = normalizeDurable();
     const policies = output(args.policies ?? []);
     const vpc = normalizeVpc();
 
@@ -1885,10 +1920,18 @@ export class Function extends Component implements Link.Linkable {
           );
         }
 
+        if(args.durable && logging?.format && logging?.format != "json"){
+          throw new VisibleError(
+            `Durable functions require "logging.format" to be set to "json"`,
+          )
+        }
+
+        const defaultFormat = args.durable ? "json" : "text";
+
         return {
           logGroup: logging?.logGroup,
           retention: logging?.retention ?? "1 month",
-          format: logging?.format ?? "text",
+          format: logging?.format ?? defaultFormat,
         };
       });
     }
@@ -1998,6 +2041,19 @@ export class Function extends Component implements Link.Linkable {
       });
     }
 
+    function normalizeDurable() {
+      if (!args.durable) return;
+      const config = args.durable === true ? {} : args.durable;
+      return {
+        timeout: output(config.timeout).apply((v) =>
+          toSeconds(v ?? "15 minutes"),
+        ),
+        retention: output(config.retention).apply((v) =>
+          toDays(v ?? "14 days"),
+        ),
+      };
+    }
+
     function buildLinkData() {
       return output(args.link || []).apply((links) => Link.build(links));
     }
@@ -2010,10 +2066,7 @@ export class Function extends Component implements Link.Linkable {
       return all([runtime, dev, isContainer]).apply(
         async ([runtime, dev, isContainer]) => {
           if (dev) {
-            return {
-              handler: "bootstrap",
-              bundle: path.join($cli.paths.platform, "dist", "bridge"),
-            };
+            return resolveDevBridge();
           }
 
           const buildResult = buildInput.apply(async (input) => {
@@ -2035,6 +2088,22 @@ export class Function extends Component implements Link.Linkable {
             bundle: buildResult.out,
             sourcemaps: buildResult.sourcemaps,
           };
+
+          function resolveDevBridge() {
+            if (durable) {
+              return {
+                handler: "index.handler",
+                bundle: path.join($cli.paths.platform, "dist", "nodejs-bridge"),
+                sourcemaps: undefined,
+              };
+            }
+
+            return {
+              handler: "bootstrap",
+              bundle: path.join($cli.paths.platform, "dist", "bridge"),
+              sourcemaps: undefined,
+            };
+          }
         },
       );
     }
@@ -2222,6 +2291,11 @@ export class Function extends Component implements Link.Linkable {
                 ...(vpc
                   ? [
                     interpolate`arn:${partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole`,
+                  ]
+                  : []),
+                ...(durable
+                  ? [
+                    interpolate`arn:${partition}:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy`,
                   ]
                   : []),
               ],
@@ -2534,6 +2608,10 @@ export class Function extends Component implements Link.Linkable {
               tags: args.tags,
               publish: output(args.versioning).apply((v) => v ?? false),
               reservedConcurrentExecutions: concurrency?.reserved,
+              durableConfig: durable && {
+                executionTimeout: durable.timeout,
+                retentionPeriod: durable.retention,
+              },
               ...(isContainer
                 ? {
                   packageType: "Image",
@@ -2578,13 +2656,21 @@ export class Function extends Component implements Link.Linkable {
                       (v) => `${v.substring(0, 240)} (live)`,
                     )
                     : "live",
-                  runtime: "provided.al2023",
+                  runtime: resolveDevRuntime(),
                   architectures: ["x86_64"],
                 }
                 : {}),
             },
             transformed[2],
           );
+
+          function resolveDevRuntime() {
+            if (durable) {
+              return "nodejs24.x";
+            }
+
+            return "provided.al2023";
+          }
         },
       );
     }
@@ -2601,10 +2687,24 @@ export class Function extends Component implements Link.Linkable {
           ([oac, authorization]) => oac || authorization === "iam",
         );
 
+        /**
+          * Durable Functions needs a qualified ARN to work. The AWS API rejects `$LATEST`
+          * as a qualifier due to a server-side regex that doesn't allow `$`.
+          * See https://github.com/hashicorp/terraform-provider-aws/issues/31459
+          * To work around this, we create an alias and use it as the qualifier.
+         */
+        const qualifier = durable
+          ? new lambda.Alias(`${name}Durable`, {
+              functionName: fn.arn,
+              functionVersion: fn.version,
+            }).name
+          : undefined;
+
         const fnUrl = new lambda.FunctionUrl(
           `${name}Url`,
           {
-            functionName: fn.name,
+            functionName: durable ? fn.arn : fn.name,
+            qualifier,
             authorizationType: isIam.apply((isIam) =>
               isIam ? "AWS_IAM" : "NONE",
             ),
@@ -2745,6 +2845,7 @@ export class Function extends Component implements Link.Linkable {
         return url.route.routerUrl;
       });
     }
+
 
     function createProvisioned() {
       return all([args.concurrency, fn.publish]).apply(
@@ -2928,14 +3029,20 @@ export class Function extends Component implements Link.Linkable {
       },
       include: [
         permission({
-          actions: ["lambda:InvokeFunction"],
-          resources: [this.function.arn],
+          actions: [
+            "lambda:InvokeFunction",
+            ...(this.durable ? [
+              "lambda:SendDurableExecutionCallbackSuccess",
+              "lambda:SendDurableExecutionCallbackFailure",
+              "lambda:SendDurableExecutionCallbackHeartbeat",
+            ] : []),
+          ],
+          resources: [this.durable ? interpolate`${this.arn}:*` : this.arn],
         }),
       ],
     };
   }
 }
-
 const __pulumiType = "sst:aws:Function";
 // @ts-expect-error
 Function.__pulumiType = __pulumiType;
