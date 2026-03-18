@@ -70,7 +70,12 @@ func (p *Project) Run(ctx context.Context, input *StackInput) error {
 	}
 	defer workdir.Cleanup()
 
-	passphrase, err := provider.Passphrase(p.home, p.app.Name, p.app.Stage)
+	var passphrase string
+	if input.Command == "deploy" || input.Dev {
+		passphrase, err = provider.PassphraseInit(p.home, p.app.Name, p.app.Stage)
+	} else {
+		passphrase, err = provider.Passphrase(p.home, p.app.Name, p.app.Stage)
+	}
 	if err != nil {
 		return err
 	}

@@ -103,6 +103,18 @@ func Passphrase(backend Home, app, stage string) (string, error) {
 		return "", err
 	}
 
+	if passphrase != "" {
+		cache[app+stage] = passphrase
+	}
+	return passphrase, nil
+}
+
+func PassphraseInit(backend Home, app, stage string) (string, error) {
+	passphrase, err := Passphrase(backend, app, stage)
+	if err != nil {
+		return "", err
+	}
+
 	if passphrase == "" {
 		slog.Info("passphrase not found, setting passphrase", "app", app, "stage", stage)
 		passphrase = flag.SST_PASSPHRASE
@@ -118,9 +130,10 @@ func Passphrase(backend Home, app, stage string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
+		passphraseCache[backend][app+stage] = passphrase
 	}
 
-	existingPassphrase, ok = cache[app+stage]
 	return passphrase, nil
 }
 
