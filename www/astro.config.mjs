@@ -57,13 +57,6 @@ const sidebar = [
     ],
   },
   {
-    label: "Integrations",
-    collapsed: true,
-    items: [
-      { label: "PlanetScale", slug: "docs/integrations/planetscale" },
-    ],
-  },
-  {
     label: "How to",
     collapsed: true,
     items: [
@@ -79,6 +72,7 @@ const sidebar = [
       { label: "Reference Resources", slug: "docs/reference-resources" },
       { label: "Environment Variables", slug: "docs/environment-variables" },
       { label: "Policy Packs", slug: "docs/policy-packs" },
+      { label: "PlanetScale", slug: "docs/planetscale" },
     ],
   },
   {
