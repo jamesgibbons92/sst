@@ -28,9 +28,7 @@ func CmdUI(c *cli.Cli) error {
 		filter = "function"
 	}
 	var u *ui.UI
-	opts := []ui.Option{
-		ui.WithDev,
-	}
+	opts := []ui.Option{}
 	if filter == "function" || filter == "" {
 		if filter != "" {
 			title := "Function Logs"
@@ -73,7 +71,7 @@ func CmdUI(c *cli.Cli) error {
 		types = append(types, ui.PaneFilterEvent{})
 	}
 	if filter == "sst" || filter == "" {
-		u = ui.New(c.Context, ui.WithDev)
+		u = ui.New(c.Context)
 		types = append(types,
 			common.StdoutEvent{},
 			deployer.DeployFailedEvent{},
