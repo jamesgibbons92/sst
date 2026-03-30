@@ -52,6 +52,17 @@ jobs:
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v3
 
+      - name: Setup SSH for AUR
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pacman-package-manager
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          git config --global user.email "sst@sst.dev"
+          git config --global user.name "sst"
+          ssh-keyscan -H aur.archlinux.org >> ~/.ssh/known_hosts || true
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
