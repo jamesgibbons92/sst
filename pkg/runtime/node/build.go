@@ -165,6 +165,7 @@ func (r *Runtime) Build(ctx context.Context, input *runtime.BuildInput) (*runtim
 			".js": ".mjs",
 		}
 		options.Outfile = ""
+		options.EntryNames = "bundle"
 	}
 
 	if !input.Dev {
