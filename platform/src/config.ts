@@ -286,6 +286,55 @@ export interface App {
    * The paths are relative to the project root.
    */
   watch?: string[];
+
+  /**
+   * Configure how your app's state is managed.
+   *
+   * The state keeps track of all your resources, secrets, and the encryption key. By default,
+   * this data is preserved via versioning even after `sst remove` so you can recover it if needed.
+   *
+   * @example
+   *
+   * For example, to fully remove the state file and encryption key:
+   *
+   * ```ts
+   * {
+   *   state: {
+   *     purgeOnRemove: input.stage !== "production"
+   *   }
+   * }
+   * ```
+   */
+  state?: {
+    /**
+     * If set to `true`, running `sst remove` will fully remove all state associated
+     * with the stage once all resources have been successfully removed.
+     *
+     * This removes the state files, secrets and the encryption passphrase.
+     *
+     * :::caution
+     * This is irreversible. Once the state encryption key is deleted, secrets and all state versions will be
+     * unrecoverable.
+     * :::
+     *
+     * :::tip
+     * Only enable this for ephemeral or development stages.
+     * :::
+     *
+     * @default false
+     *
+     * @example
+     *
+     * ```ts
+     * {
+     *   state: {
+     *     purgeOnRemove: true
+     *   }
+     * }
+     * ```
+     */
+    purgeOnRemove?: boolean;
+  };
 }
 
 export interface AppInput {

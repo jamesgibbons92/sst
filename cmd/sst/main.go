@@ -837,14 +837,6 @@ var root = &cli.Command{
 						Long:  "Only run it for the given component.",
 					},
 				},
-				{
-					Name: "purge",
-					Type: "bool",
-					Description: cli.Description{
-						Short: "Fully remove the stage state",
-						Long:  "Remove state file and passphrase associated with the stage. Warning: This is irreversible, the state encryption key and all state versions will be unrecoverable.",
-					},
-				},
 			},
 			Run: CmdRemove,
 		},
