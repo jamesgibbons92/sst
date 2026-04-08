@@ -183,10 +183,10 @@ func Cleanup(backend Home, app, stage string) error {
 }
 
 func Purge(backend Home, app, stage string) error {
-	if err := backend.removeData("secret", app, stage); err != nil {
+	if err := backend.removeData("app", app, stage); err != nil {
 		return err
 	}
-	if err := backend.removeData("app", app, stage); err != nil {
+	if err := backend.removeData("secret", app, stage); err != nil {
 		return err
 	}
 	if err := backend.removePassphrase(app, stage); err != nil {
@@ -375,7 +375,7 @@ func putData(backend Home, key, app, stage string, encrypt bool, data interface{
 		return err
 	}
 	if encrypt {
-		passphrase, err := Passphrase(backend, app, stage)
+		passphrase, err := PassphraseInit(backend, app, stage)
 		if err != nil {
 			return err
 		}
