@@ -40,7 +40,7 @@ export interface WorkflowArgs
   /**
    * Number of days to retain the workflow execution state.
    *
-   * @default `"14 days"`
+   * @default `"30 days"`
    */
   retention?: Input<DurationDays>;
   /**

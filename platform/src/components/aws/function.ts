@@ -1481,13 +1481,13 @@ export interface FunctionArgs {
     | boolean
     | {
         /**
-         * Maximum execution time for the durable function
-         * @default `15 minutes`
+         * Maximum execution time for the durable function.
+         * @default `14 days`
          */
         timeout?: Input<Duration>;
         /**
          * Number of days to retain the function's execution state.
-         * @default `14 days`
+         * @default `30 days`
          */
         retention?: Input<DurationDays>;
       };
@@ -2060,10 +2060,10 @@ export class Function extends Component implements Link.Linkable {
       const config = args.durable === true ? {} : args.durable;
       return {
         timeout: output(config.timeout).apply((v) =>
-          toSeconds(v ?? "15 minutes"),
+          toSeconds(v ?? "14 days"),
         ),
         retention: output(config.retention).apply((v) =>
-          toDays(v ?? "14 days"),
+          toDays(v ?? "30 days"),
         ),
       };
     }
