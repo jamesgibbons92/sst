@@ -14,12 +14,12 @@ export default $config({
     };
   },
   async run() {
-    new sst.cloudflare.x.StaticSite("Vite2", {
+    new sst.cloudflare.StaticSiteV2("Vite", {
+      notFound: "single-page-application",
       build: {
         command: "pnpm run build",
         output: "dist",
       },
-      notFound: "spa",
     });
   },
 });

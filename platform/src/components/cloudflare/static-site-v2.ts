@@ -10,18 +10,44 @@ import {
   buildApp,
   prepare,
 } from "../base/base-static-site.js";
+import type { BaseSiteDev } from "../base/base-site.js";
+import type { Prettify } from "../component.js";
 
 export interface StaticSiteV2Args extends Omit<BaseStaticSiteArgs, "vite"> {
   /**
-   * Path to the directory where your static site is located. By default this assumes your static site is in the root of your SST app.
-   *
-   * This directory will be uploaded to KV. The path is relative to your `sst.config.ts`.
+   * Configure how this component works in `sst dev`.
    *
    * :::note
-   * If the `build` options are specified, `build.output` will be uploaded to KV instead.
+   * In `sst dev` your static site is run in dev mode; it's not deployed.
    * :::
    *
-   * If you are using a static site generator, like Vite, you'll need to configure the `build` options. When these are set, the `build.output` directory will be uploaded to KV instead.
+   * Instead of deploying your static site, this starts it in dev mode. It's run
+   * as a separate process in the `sst dev` multiplexer. Read more about
+   * [`sst dev`](/docs/reference/cli/#dev).
+   *
+   * To disable dev mode, pass in `false`.
+   *
+   * @example
+   * Use a custom dev command.
+   * ```js
+   * {
+   *   dev: {
+   *     command: "yarn dev"
+   *   }
+   * }
+   * ```
+   */
+  dev?: false | Prettify<BaseSiteDev>;
+  /**
+   * Path to the directory where your static site is located. By default this assumes your static site is in the root of your SST app.
+   *
+   * This directory will be uploaded as static assets. The path is relative to your `sst.config.ts`.
+   *
+   * :::note
+   * If the `build` options are specified, `build.output` will be uploaded as static assets instead.
+   * :::
+   *
+   * If you are using a static site generator, like Vite, you'll need to configure the `build` options. When these are set, the `build.output` directory will be uploaded as static assets instead.
    *
    * @default `"."`
    *
@@ -39,7 +65,7 @@ export interface StaticSiteV2Args extends Omit<BaseStaticSiteArgs, "vite"> {
   /**
    * Configure if your static site needs to be built. This is useful if you are using a static site generator.
    *
-   * The `build.output` directory will be uploaded to KV instead.
+   * The `build.output` directory will be uploaded as static assets.
    *
    * @example
    * For a Vite project using npm this might look like this.
@@ -117,9 +143,9 @@ export interface StaticSiteV2Args extends Omit<BaseStaticSiteArgs, "vite"> {
 }
 
 /**
- * The `StaticSiteV2` component lets you deploy a static website to Cloudflare. It uses [Cloudflare KV storage](https://developers.cloudflare.com/kv/) to store your files and [Cloudflare Workers](https://developers.cloudflare.com/workers/) to serve them.
+ * The `StaticSiteV2` component lets you deploy a static website to Cloudflare. It uses [Cloudflare Workers](https://developers.cloudflare.com/workers/) with [static assets](https://developers.cloudflare.com/workers/static-assets/) to serve your files.
  *
- * It can also `build` your site by running your static site generator, like [Vite](https://vitejs.dev) and uploading the build output to Cloudflare KV.
+ * It can also `build` your site by running your static site generator, like [Vite](https://vitejs.dev) and uploading the build output as static assets.
  *
  * @example
  *
@@ -182,10 +208,6 @@ export interface StaticSiteV2Args extends Omit<BaseStaticSiteArgs, "vite"> {
  *
  * Set `environment` variables for the build process of your static site. These will be used locally and on deploy.
  *
- * :::tip
- * For Vite, the types for the environment variables are also generated. This can be configured through the `vite` prop.
- * :::
- *
  * For some static site generators like Vite, [environment variables](https://vitejs.dev/guide/env-and-mode) prefixed with `VITE_` can be accessed in the browser.
  *
  * ```ts {5-7}
@@ -217,15 +239,13 @@ export class StaticSiteV2 extends Component implements Link.Linkable {
 
     const self = this;
     const { sitePath, environment, indexPage } = prepare(args);
-    if ($dev) {
+    const dev = normalizeDev();
+
+    if (dev.enabled) {
+      this.devUrl = dev.url;
       this.registerOutputs({
         _hint: undefined,
-        _dev: {
-          environment,
-          command: "npm run dev",
-          directory: sitePath,
-          autostart: true,
-        },
+        _dev: dev.outputs,
         _metadata: {
           mode: "placeholder",
           path: sitePath,
@@ -234,6 +254,23 @@ export class StaticSiteV2 extends Component implements Link.Linkable {
         },
       });
       return;
+    }
+
+    function normalizeDev() {
+      const enabled = $dev && args.dev !== false;
+      const devArgs = args.dev || {};
+
+      return {
+        enabled,
+        url: output(devArgs.url ?? URL_UNAVAILABLE),
+        outputs: {
+          title: devArgs.title,
+          environment,
+          command: output(devArgs.command ?? "npm run dev"),
+          autostart: output(devArgs.autostart ?? true),
+          directory: output(devArgs.directory ?? sitePath),
+        },
+      };
     }
 
     const htmlHandling = normalizeHtmlHandling();
@@ -245,12 +282,7 @@ export class StaticSiteV2 extends Component implements Link.Linkable {
 
     this.registerOutputs({
       _hint: this.url,
-      _dev: {
-        environment,
-        command: "npm run dev",
-        directory: sitePath,
-        autostart: true,
-      },
+      _dev: dev.outputs,
       _metadata: {
         mode: "deployed",
         path: sitePath,
