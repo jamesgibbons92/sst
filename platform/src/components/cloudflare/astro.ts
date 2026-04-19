@@ -4,6 +4,12 @@ import { ComponentResourceOptions, Output } from "@pulumi/pulumi";
 import { VisibleError } from "../error.js";
 import { Plan, SsrSite, SsrSiteArgs } from "./ssr-site.js";
 import { existsAsync } from "../../util/fs.js";
+import { isALteB } from "../../util/compare-semver.js";
+import { getPackageVersion } from "../../util/package.js";
+import {
+  validateFrameworkConfig,
+  validateNoWranglerFile,
+} from "./helpers/validation.js";
 
 export interface AstroArgs extends SsrSiteArgs {
   /**
@@ -167,8 +173,7 @@ export interface AstroArgs extends SsrSiteArgs {
  * });
  * ```
  *
- * Add this to your `astro.config.mjs` to make linked resources and bindings
- * available in `sst dev`.
+ * Add this to your `astro.config.mjs` for SST to work correctly.
  *
  * ```js title="astro.config.mjs"
  * import { defineConfig } from "astro/config";
@@ -199,6 +204,22 @@ export class Astro extends SsrSite {
     opts: ComponentResourceOptions = {},
   ) {
     super(__pulumiType, name, args, opts);
+  }
+
+  protected validate(sitePath: string): void {
+    // Only validate configPath requirement for Astro v6+
+    // If version cannot be determined, default to v6+ (validate)
+    const astroVersion = getPackageVersion(sitePath, "astro");
+    const isV6Plus = !astroVersion || isALteB("6.0.0", astroVersion);
+
+    if (isV6Plus) {
+      validateFrameworkConfig({
+        sitePath,
+        configName: "astro.config",
+        componentName: "Astro",
+      });
+    }
+    validateNoWranglerFile(sitePath, "Astro");
   }
 
   protected buildPlan(outputPath: Output<string>): Output<Plan> {

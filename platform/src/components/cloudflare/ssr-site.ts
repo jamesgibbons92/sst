@@ -7,6 +7,10 @@ import { VisibleError } from "../error.js";
 import { BaseSsrSiteArgs, buildApp } from "../base/base-ssr-site.js";
 import { Worker, WorkerArgs } from "./worker.js";
 import { normalizeCompatibility } from "./helpers/compatibility.js";
+import {
+  createWranglerConfig,
+  writeWranglerConfig,
+} from "./helpers/wrangler.js";
 import { Link } from "../link.js";
 import { URL_UNAVAILABLE } from "../aws/linkable.js";
 
@@ -33,11 +37,13 @@ export abstract class SsrSite extends Component implements Link.Linkable {
   private server?: Worker;
   private devUrl?: Output<string>;
 
-  protected abstract buildPlan(
-    outputPath: Output<string>,
-    name: string,
-    args: SsrSiteArgs,
-  ): Output<Plan>;
+  protected validate(_sitePath: string): void {}
+
+  protected abstract buildPlan(outputPath: Output<string>): Output<Plan>;
+
+  protected buildWrangler(): Input<Record<string, Input<any>> | undefined> {
+    return undefined;
+  }
 
   constructor(
     type: string,
@@ -49,7 +55,11 @@ export abstract class SsrSite extends Component implements Link.Linkable {
     const self = this;
 
     const sitePath = normalizeSitePath();
+    const compatibility = resolveCompatibility();
+    const frameworkConfig = resolveFrameworkConfig();
+    const wranglerConfig = resolveWranglerConfig();
     const dev = normalizeDev();
+    this.validate(sitePath);
 
     if (dev.enabled) {
       this.devUrl = dev.url;
@@ -63,8 +73,15 @@ export abstract class SsrSite extends Component implements Link.Linkable {
       return;
     }
 
-    const outputPath = buildApp(self, name, args, sitePath);
-    const plan = validatePlan(this.buildPlan(outputPath, name, args));
+    const outputPath = buildApp(
+      self,
+      name,
+      args,
+      sitePath,
+      undefined,
+      resolveBuildEnvironment(),
+    );
+    const plan = this.buildPlan(outputPath);
     const worker = createWorker();
 
     this.server = worker;
@@ -89,17 +106,21 @@ export abstract class SsrSite extends Component implements Link.Linkable {
           environment: args.environment,
           cloudflare: enabled
             ? {
-                compatibility: resolveCompatibility(),
+                path: resolveDevWranglerPath(),
               }
             : undefined,
           command: output(devArgs.command ?? "npm run dev"),
           autostart: output(devArgs.autostart ?? true),
-          directory: output(devArgs.directory ?? sitePath),
+          directory: devArgs.directory ?? sitePath,
           links: output(args.link || [])
             .apply(Link.build)
             .apply((links) => links.map((link) => link.name)),
         },
       };
+    }
+
+    function resolveFrameworkConfig() {
+      return output(self.buildWrangler()).apply((config) => config ?? {});
     }
 
     function resolveCompatibility() {
@@ -122,23 +143,80 @@ export abstract class SsrSite extends Component implements Link.Linkable {
       return normalizeCompatibility(workerArgs);
     }
 
-    function normalizeSitePath() {
-      return output(args.path).apply((sitePath) => {
-        if (!sitePath) return ".";
+    function resolveBuildEnvironment() {
+      return resolveBuildWranglerPath().apply((wranglerPath) => ({
+        SST_WRANGLER_PATH: wranglerPath,
+      }));
+    }
 
-        if (!fs.existsSync(sitePath)) {
-          throw new VisibleError(
-            `Site directory not found at "${path.resolve(
-              sitePath,
-            )}". Please check the path setting in your configuration.`,
-          );
-        }
-        return sitePath;
+    function resolveDevWranglerPath() {
+      return wranglerConfig.apply((config) => {
+        return writeWranglerConfig({
+          workDir: $cli.paths.work,
+          stage: $app.stage,
+          name,
+          config,
+        });
       });
     }
 
-    function validatePlan(plan: Output<Plan>) {
-      return plan;
+    function resolveWranglerConfig() {
+      return all([
+        output(args.environment ?? {}),
+        resolveLinkBindings(),
+        compatibility,
+        frameworkConfig,
+      ]).apply(([environment, links, compatibility, frameworkConfig]) => {
+        return createWranglerConfig({
+          appStage: $app.stage,
+          name,
+          frameworkConfig,
+          compatibility,
+          environment,
+          links,
+          accountID: process.env.CLOUDFLARE_DEFAULT_ACCOUNT_ID,
+        });
+      });
+    }
+
+    function resolveBuildWranglerPath() {
+      return wranglerConfig.apply((config) => {
+        return writeWranglerConfig({
+          workDir: $cli.paths.work,
+          stage: $app.stage,
+          name,
+          config,
+        });
+      });
+    }
+
+    function resolveLinkBindings() {
+      return output(args.link ?? []).apply((links) => {
+        const linkBindings = links.filter(Link.isLinkable).map((link) =>
+          output({
+            urn: link.urn,
+            link: link.getSSTLink(),
+          }).apply(({ urn, link }) => ({
+            name: urn.split("::").at(-1)!,
+            include: link.include ?? [],
+          })),
+        );
+        return linkBindings.length > 0 ? all(linkBindings) : [];
+      });
+    }
+
+    function normalizeSitePath() {
+      const sitePath = args.path ?? ".";
+
+      if (!fs.existsSync(sitePath)) {
+        throw new VisibleError(
+          `Site directory not found at "${path.resolve(
+            sitePath,
+          )}". Please check the path setting in your configuration.`,
+        );
+      }
+
+      return sitePath;
     }
 
     function createWorker() {
