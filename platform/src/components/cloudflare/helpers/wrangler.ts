@@ -52,6 +52,7 @@ export function createWranglerConfig(input: {
   const hyperdrives: Record<string, any>[] = [];
   const services: Record<string, any>[] = [];
   const queueProducers: Record<string, any>[] = [];
+  const workflows: Record<string, any>[] = [];
   let ai: Record<string, any> | undefined;
   let versionMetadata: Record<string, any> | undefined;
 
@@ -125,6 +126,15 @@ export function createWranglerConfig(input: {
           binding: link.name,
         };
         break;
+      case "workflowBindings":
+        workflows.push({
+          binding: link.name,
+          name: stringValue(properties.workflowName),
+          class_name: stringValue(properties.className),
+          script_name: stringValue(properties.scriptName),
+          remote: true,
+        });
+        break;
     }
   }
 
@@ -156,6 +166,9 @@ export function createWranglerConfig(input: {
   }
   if (versionMetadata) {
     config.version_metadata = versionMetadata;
+  }
+  if (workflows.length > 0) {
+    config.workflows = workflows;
   }
 
   return config;
