@@ -1,6 +1,7 @@
 import { getCollection } from "astro:content";
 import type { APIRoute } from "astro";
 import { cleanMarkdown } from "../util/markdown";
+
 export const GET: APIRoute = async () => {
   const docs = await getCollection("docs");
   const filtered = docs

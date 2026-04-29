@@ -105,6 +105,7 @@ if (!cmd || cmd === "examples") {
   await generateExamplesDocs();
   await generateIndividualExampleDocs();
 }
+if (!cmd || cmd === "changelog") await generateChangelog();
 restoreCode();
 
 function generateCliDoc() {
@@ -418,6 +419,136 @@ function generateCommonErrorsDoc() {
   }
 }
 
+async function generateChangelog() {
+  console.info(`Generating changelog...`);
+
+  const REPO = "sst/sst";
+  const MIN_MAJOR = 4;
+  const PER_PAGE = 100;
+  const outputFilePath = `src/data/changelog.json`;
+
+  type GithubRelease = {
+    tag_name: string;
+    published_at: string;
+    created_at: string;
+    html_url: string;
+    body: string | null;
+    draft: boolean;
+    prerelease: boolean;
+  };
+
+  type ChangelogEntry = {
+    tag: string;
+    publishedAt: string;
+    url: string;
+    body: string;
+  };
+
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "sst-docs-changelog-generator",
+  };
+  const token = process.env.GITHUB_TOKEN;
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const releases: GithubRelease[] = [];
+  for (let page = 1; ; page++) {
+    const url = `https://api.github.com/repos/${REPO}/releases?per_page=${PER_PAGE}&page=${page}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(
+        `GitHub API ${res.status} ${res.statusText} on ${url}: ${text}`
+      );
+    }
+    const batch = (await res.json()) as GithubRelease[];
+    releases.push(...batch);
+    if (batch.length < PER_PAGE) break;
+
+    // Stop early once we've gone past the v4 cutoff to save calls.
+    const passedCutoff = batch.every((r) => {
+      const major = parseMajor(r.tag_name);
+      return major !== null && major < MIN_MAJOR;
+    });
+    if (passedCutoff) break;
+  }
+  console.debug(` - fetched ${releases.length} total releases`);
+
+  const filtered = releases
+    .filter((r) => !r.draft)
+    .filter((r) => {
+      const major = parseMajor(r.tag_name);
+      return major !== null && major >= MIN_MAJOR;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.published_at).getTime() -
+        new Date(a.published_at).getTime()
+    );
+  console.debug(` - ${filtered.length} releases match v${MIN_MAJOR}+`);
+
+  const entries: ChangelogEntry[] = filtered.map((r) => ({
+    tag: r.tag_name,
+    publishedAt: r.published_at,
+    url: r.html_url,
+    body: cleanBody(r.body),
+  }));
+
+  fs.mkdirSync(path.dirname(outputFilePath), { recursive: true });
+  fs.writeFileSync(outputFilePath, JSON.stringify(entries, null, 2) + "\n");
+
+  function parseMajor(tag: string): number | null {
+    const m = /^v(\d+)\./.exec(tag);
+    return m ? Number(m[1]) : null;
+  }
+
+  function cleanBody(body: string | null): string {
+    if (!body) return "";
+    let text = body.replace(/\r\n/g, "\n");
+
+    // Strip the trailing "## Changelog" section heading and any blank lines
+    // immediately preceding it, but keep the bullets that follow.
+    text = text.replace(/\n*^##\s+Changelog\s*$/im, "");
+
+    const lines = text.split("\n").map((line) => {
+      // Match a leading bullet, an optional [hash](url) or bare hash,
+      // an optional ":" or whitespace separator, then the subject.
+      // Handles all observed formats:
+      //   * abc1234 subject
+      //   * abc1234: subject
+      //   * [abc1234](https://...): subject
+      //   * [abc1234](https://...) subject
+      const m = line.match(
+        /^(\s*[-*]\s+)(?:\[[0-9a-f]{7,40}\](?:\([^)]+\))?|[0-9a-f]{7,40})[:\s]\s*(.*)$/i
+      );
+      if (m) return `${m[1]}${m[2]}`;
+      return line;
+    });
+
+    let result = lines.join("\n");
+
+    // Strip trailing "(@username)" author attributions from each line.
+    result = result.replace(/[ \t]*\(@[\w-]+\)[ \t]*$/gm, "");
+
+    result = result.trim();
+
+    // Linkify GitHub PR/issue references (#1234) so they remain clickable.
+    // Skip refs that are already inside a markdown link `[#1234]` or part of
+    // a URL path (`/issues/1234#anchor` etc).
+    result = result.replace(
+      /(^|[^\[\/\w])#(\d{2,})(?!\])/g,
+      (_, prefix, num) =>
+        `${prefix}[#${num}](https://github.com/${REPO}/issues/${num})`
+    );
+
+    // Unwrap parentheses around inline PR/issue links: "([#1234](url))" → "[#1234](url)".
+    result = result.replace(/\(\[#(\d+)\]\(([^)]+)\)\)/g, "[#$1]($2)");
+
+    return result;
+  }
+}
+
 async function generateExamplesDocs() {
   const modules = await buildExamples();
   const outputFilePath = `src/content/docs/docs/examples.mdx`;
@@ -433,7 +564,7 @@ async function generateExamplesDocs() {
         return [
           ``,
           `---`,
-          renderTdComment(module.children![0].comment?.summary!),
+          renderExampleComment(module.children![0].comment?.summary!),
           ...renderRunFunction(module),
           ``,
           `View the [full example](${config.github}/tree/dev/examples/${
@@ -470,11 +601,9 @@ async function generateExamplesDocs() {
       .toString()
       .replace(/\t/g, "  ")
       .split("\n");
-    const start = lines.indexOf("  async run() {");
-    const end = lines.lastIndexOf("  },");
     return [
       '```ts title="sst.config.ts"',
-      ...lines.slice(start + 1, end).map((l) => l.substring(4)),
+      ...extractRunSnippet(lines),
       "```",
     ];
   }
@@ -544,7 +673,7 @@ async function generateIndividualExampleDocs() {
   for (const module of modules) {
     const dirName = module.name.split("/")[0];
     const comment = module.children![0].comment!;
-    const commentText = renderTdComment(comment.summary);
+    const commentText = renderExampleComment(comment.summary);
 
     // Extract title from the ## heading in the comment
     const titleMatch = commentText.match(/^##\s+(.+)/m);
@@ -565,7 +694,7 @@ async function generateIndividualExampleDocs() {
     const end = lines.lastIndexOf("  },");
     const codeBlock = [
       '```ts title="sst.config.ts"',
-      ...lines.slice(start + 1, end).map((l) => l.substring(4)),
+      ...extractRunSnippet(lines),
       "```",
     ];
 
@@ -606,6 +735,45 @@ async function generateIndividualExampleDocs() {
       ].join("\n")
     );
   }
+}
+
+function extractRunSnippet(lines: string[]) {
+  const start = lines.indexOf("  async run() {");
+  const end = lines.lastIndexOf("  },");
+  return stripTopLevelReturnObject(
+    lines.slice(start + 1, end).map((l) => l.substring(4))
+  );
+}
+
+function stripTopLevelReturnObject(lines: string[]) {
+  const start = lines.findIndex((line) => /^return\s*\{/.test(line));
+  if (start === -1) return trimTrailingBlankLines(lines);
+
+  const end = findReturnObjectEnd(lines, start);
+  if (end === -1) return trimTrailingBlankLines(lines);
+
+  const before = trimTrailingBlankLines(lines.slice(0, start));
+  return trimTrailingBlankLines([...before, ...lines.slice(end + 1)]);
+}
+
+function findReturnObjectEnd(lines: string[], start: number) {
+  let depth = 0;
+
+  for (let i = start; i < lines.length; i++) {
+    for (const char of lines[i]) {
+      if (char === "{") depth++;
+      if (char === "}") depth--;
+    }
+    if (depth === 0 && /}\s*;?\s*$/.test(lines[i])) return i;
+  }
+
+  return -1;
+}
+
+function trimTrailingBlankLines(lines: string[]) {
+  const result = [...lines];
+  while (result.length && result[result.length - 1].trim() === "") result.pop();
+  return result;
 }
 
 async function generateGlobalConfigDoc(
@@ -850,6 +1018,20 @@ function renderImports(outputFilePath: string) {
 
 function renderTdComment(parts: TypeDoc.CommentDisplayPart[]) {
   return parts.map((part) => part.text).join("");
+}
+
+function renderExampleComment(parts: TypeDoc.CommentDisplayPart[]) {
+  return stripSstConfigReturns(renderTdComment(parts));
+}
+
+function stripSstConfigReturns(markdown: string) {
+  return markdown.replace(
+    /```([^\n]*\btitle=(["'])sst\.config\.ts\2[^\n]*)\n([\s\S]*?)```/g,
+    (_, meta: string, _quote: string, code: string) => {
+      const stripped = stripTopLevelReturnObject(code.split("\n")).join("\n");
+      return `\`\`\`${meta}\n${stripped}\n\`\`\``;
+    }
+  );
 }
 
 function renderBodyEnd() {
