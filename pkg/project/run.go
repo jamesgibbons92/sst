@@ -72,9 +72,9 @@ func (p *Project) Run(ctx context.Context, input *StackInput) error {
 
 	var passphrase string
 	if input.Command == "deploy" || input.Dev {
-		passphrase, err = provider.PassphraseInit(p.home, p.app.Name, p.app.Stage)
+		passphrase, err = provider.GetOrCreatePassphrase(p.home, p.app.Name, p.app.Stage)
 	} else {
-		passphrase, err = provider.Passphrase(p.home, p.app.Name, p.app.Stage)
+		passphrase, err = provider.GetPassphrase(p.home, p.app.Name, p.app.Stage)
 	}
 	if err != nil {
 		return err

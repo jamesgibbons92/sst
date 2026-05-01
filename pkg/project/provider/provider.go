@@ -84,7 +84,7 @@ func Copy(from Home, to Home, app, stage string) error {
 	return nil
 }
 
-func Passphrase(backend Home, app, stage string) (string, error) {
+func GetPassphrase(backend Home, app, stage string) (string, error) {
 	slog.Info("getting passphrase", "app", app, "stage", stage)
 
 	cache, ok := passphraseCache[backend]
@@ -109,8 +109,8 @@ func Passphrase(backend Home, app, stage string) (string, error) {
 	return passphrase, nil
 }
 
-func PassphraseInit(backend Home, app, stage string) (string, error) {
-	passphrase, err := Passphrase(backend, app, stage)
+func GetOrCreatePassphrase(backend Home, app, stage string) (string, error) {
+	passphrase, err := GetPassphrase(backend, app, stage)
 	if err != nil {
 		return "", err
 	}
@@ -375,7 +375,7 @@ func putData(backend Home, key, app, stage string, encrypt bool, data interface{
 		return err
 	}
 	if encrypt {
-		passphrase, err := PassphraseInit(backend, app, stage)
+		passphrase, err := GetOrCreatePassphrase(backend, app, stage)
 		if err != nil {
 			return err
 		}
@@ -416,7 +416,7 @@ func getData(backend Home, key, app, stage string, encrypted bool, out interface
 	}
 
 	if encrypted {
-		passphrase, err := Passphrase(backend, app, stage)
+		passphrase, err := GetPassphrase(backend, app, stage)
 		if err != nil {
 			return err
 		}
