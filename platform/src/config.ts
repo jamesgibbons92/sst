@@ -312,17 +312,6 @@ export interface App {
    * The state keeps track of all your resources, secrets, and the encryption key. By default,
    * this data is preserved via versioning even after `sst remove` so you can recover it if needed.
    *
-   * @example
-   *
-   * For example, to fully remove the state file and encryption key:
-   *
-   * ```ts
-   * {
-   *   state: {
-   *     purge: input.stage !== "production"
-   *   }
-   * }
-   * ```
    */
   state?: {
     /**
