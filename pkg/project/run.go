@@ -675,7 +675,7 @@ loop:
 
 	if input.Command == "remove" && len(complete.Resources) == 0 {
 		provider.Cleanup(p.home, p.app.Name, p.app.Stage)
-		if p.app.State != nil && p.app.State.PurgeOnRemove {
+		if p.app.State != nil && p.app.State.Purge {
 			provider.Purge(p.home, p.app.Name, p.app.Stage)
 		}
 	}

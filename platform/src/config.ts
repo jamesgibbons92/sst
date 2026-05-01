@@ -300,7 +300,7 @@ export interface App {
    * ```ts
    * {
    *   state: {
-   *     purgeOnRemove: input.stage !== "production"
+   *     purge: input.stage !== "production"
    *   }
    * }
    * ```
@@ -328,12 +328,12 @@ export interface App {
      * ```ts
      * {
      *   state: {
-     *     purgeOnRemove: true
+     *     purge: true
      *   }
      * }
      * ```
      */
-    purgeOnRemove?: boolean;
+    purge?: boolean;
   };
 }
 

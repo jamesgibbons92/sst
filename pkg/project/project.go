@@ -27,10 +27,6 @@ import (
 	"github.com/sst/sst/v3/pkg/runtime/worker"
 )
 
-type AppState struct {
-	PurgeOnRemove bool `json:"purgeOnRemove"`
-}
-
 type App struct {
 	Name      string                 `json:"name"`
 	Stage     string                 `json:"stage"`
@@ -40,11 +36,15 @@ type App struct {
 	Version   string                 `json:"version"`
 	Protect   bool                   `json:"protect"`
 	Watch     []string               `json:"watch"`
-	State     *AppState              `json:"state"`
+	State     *State                 `json:"state"`
 	// Deprecated: Backend is now Home
 	Backend string `json:"backend"`
 	// Deprecated: RemovalPolicy is now Removal
 	RemovalPolicy string `json:"removalPolicy"`
+}
+
+type State struct {
+	Purge bool `json:"purge"`
 }
 
 type Project struct {
