@@ -665,13 +665,12 @@ loop:
 	}
 
 	if input.Command == "remove" && len(complete.Resources) == 0 {
-		err = provider.Cleanup(p.home, p.app.Name, p.app.Stage)
-		if err != nil {
-			return err
-		}
 		if p.app.State != nil && p.app.State.Purge {
-			err = provider.Purge(p.home, p.app.Name, p.app.Stage)
-			if err != nil {
+			if err := provider.Purge(p.home, p.app.Name, p.app.Stage); err != nil {
+				return err
+			}
+		} else {
+			if err := provider.Cleanup(p.home, p.app.Name, p.app.Stage); err != nil {
 				return err
 			}
 		}

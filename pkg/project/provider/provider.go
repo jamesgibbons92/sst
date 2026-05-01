@@ -29,6 +29,7 @@ type Home interface {
 	getPassphrase(app, stage string) (string, error)
 	listStages(app string) ([]string, error)
 	cleanup(key, app, stage string) error
+	purge(app, stage string) error
 	removePassphrase(app, stage string) error
 	info() (util.KeyValuePairs[string], error)
 }
@@ -183,16 +184,16 @@ func Cleanup(backend Home, app, stage string) error {
 }
 
 func Purge(backend Home, app, stage string) error {
-	if err := backend.removeData("app", app, stage); err != nil {
-		return err
-	}
-	if err := backend.removeData("secret", app, stage); err != nil {
+	slog.Info("purging stage", "app", app, "stage", stage)
+	if err := backend.purge(app, stage); err != nil {
 		return err
 	}
 	if err := backend.removePassphrase(app, stage); err != nil {
 		return err
 	}
-	delete(passphraseCache[backend], app+stage)
+	if cache, ok := passphraseCache[backend]; ok {
+		delete(cache, app+stage)
+	}
 	return nil
 }
 

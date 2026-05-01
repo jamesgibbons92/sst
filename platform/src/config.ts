@@ -310,24 +310,30 @@ export interface App {
    * Configure how your app's state is managed.
    *
    * The state keeps track of all your resources, secrets, and the encryption key. By default,
-   * this data is preserved via versioning even after `sst remove` so you can recover it if needed.
-   *
+   * `sst remove` only deletes the live state files and leaves the noncurrent S3 versions in
+   * place so you can recover the stage if needed. Set `purge: true` to drop everything for
+   * the stage when it is removed.
    */
   state?: {
     /**
      * If set to `true`, running `sst remove` will fully remove all state associated
      * with the stage once all resources have been successfully removed.
      *
-     * This removes the state files, secrets and the encryption passphrase.
-     *
-     * :::caution
-     * This is irreversible. Once the state encryption key is deleted, secrets and all state versions will be
-     * unrecoverable.
-     * :::
-     *
      * :::tip
      * Only enable this for ephemeral or development stages.
      * :::
+     *
+     * This removes the state files, secrets, update history, event logs, snapshots
+     * and the encryption passphrase.
+     *
+     * :::caution
+     * This is irreversible. Once the state encryption key is deleted, secrets and
+     * all state versions will be unrecoverable.
+     * :::
+     *
+     * On AWS this requires `s3:DeleteObjectVersion` and `s3:ListBucketVersions`
+     * on the state bucket. See the [IAM credentials](/docs/iam-credentials)
+     * docs for the full policy.
      *
      * @default false
      *
