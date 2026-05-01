@@ -192,6 +192,7 @@ func Purge(backend Home, app, stage string) error {
 	if err := backend.removePassphrase(app, stage); err != nil {
 		return err
 	}
+	delete(passphraseCache[backend], app+stage)
 	return nil
 }
 
