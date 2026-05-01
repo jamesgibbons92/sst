@@ -308,11 +308,6 @@ export interface App {
 
   /**
    * Configure how your app's state is managed.
-   *
-   * The state keeps track of all your resources, secrets, and the encryption key. By default,
-   * `sst remove` only deletes the live state files and leaves the noncurrent S3 versions in
-   * place so you can recover the stage if needed. Set `purge: true` to drop everything for
-   * the stage when it is removed.
    */
   state?: {
     /**
